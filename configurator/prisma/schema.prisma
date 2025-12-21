@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+enum AttributeDataType {
+  string
+  number
+  boolean
+  enum
+  range
+  json
+}
+
+model Category {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  description   String         @default("")
+  order         Int            @default(0)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  id          String   @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  options  Option[]
+}
+
+model Option {
+  id            String   @id @default(uuid())
+  subcategoryId String
+  code          String   @unique
+  name          String
+  description   String?
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subcategory Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  attributes  Attribute[]
+}
+
+model Attribute {
+  id                String            @id @default(uuid())
+  optionId          String
+  key               String            @unique
+  label             String
+  dataType          AttributeDataType
+  optionListId      String?
+  defaultExpression String?
+  sortOrder         Int               @default(0)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  option     Option      @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  optionList OptionList? @relation(fields: [optionListId], references: [id])
+}
+
+model OptionList {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  items       OptionListItem[]
+  attributes  Attribute[]
+}
+
+model OptionListItem {
+  id           String     @id @default(uuid())
+  optionListId String
+  value        String
+  label        String
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  optionList OptionList @relation(fields: [optionListId], references: [id], onDelete: Cascade)
+}
+        

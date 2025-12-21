@@ -1,0 +1,923 @@
+import React, { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  attributesApi,
+  categoriesApi,
+  optionListItemsApi,
+  optionListsApi,
+  optionsApi,
+  subcategoriesApi,
+} from "./api/entities";
+import type {
+  Attribute,
+  Category,
+  Option,
+  OptionList,
+  OptionListItem,
+  Subcategory,
+} from "./types/domain";
+
+type CreateCategoryInput = Partial<Category>;
+type CreateSubcategoryInput = Partial<Subcategory>;
+type CreateOptionInput = Partial<Option>;
+type CreateAttributeInput = Partial<Attribute>;
+type CreateOptionListInput = Partial<OptionList>;
+type CreateOptionListItemInput = Partial<OptionListItem>;
+
+type Section =
+  | "categories"
+  | "subcategories"
+  | "options"
+  | "attributes"
+  | "optionLists"
+  | "optionListItems";
+
+export default function App() {
+  const qc = useQueryClient();
+  const [showInactive, setShowInactive] = useState(false);
+  const [activeSection, setActiveSection] = useState<Section>("categories");
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | undefined>();
+  const [selectedOption, setSelectedOption] = useState<string | undefined>();
+  const [selectedOptionList, setSelectedOptionList] = useState<string | undefined>();
+  const categories = useQuery({
+    queryKey: ["categories", showInactive],
+    queryFn: () => categoriesApi.list(showInactive),
+  });
+
+  const subcategories = useQuery({
+    queryKey: ["subcategories", selectedCategory, showInactive],
+    queryFn: () => subcategoriesApi.list(selectedCategory, showInactive),
+    enabled: !!selectedCategory,
+  });
+
+  const options = useQuery({
+    queryKey: ["options", selectedSubcategory, showInactive],
+    queryFn: () => optionsApi.list(selectedSubcategory, showInactive),
+    enabled: !!selectedSubcategory,
+  });
+
+  const attributes = useQuery({
+    queryKey: ["attributes", selectedOption, showInactive],
+    queryFn: () => attributesApi.list(selectedOption, showInactive),
+    enabled: !!selectedOption,
+  });
+
+  const optionLists = useQuery({
+    queryKey: ["option-lists"],
+    queryFn: () => optionListsApi.list(),
+  });
+
+  const optionListItems = useQuery({
+    queryKey: ["option-list-items", selectedOptionList, showInactive],
+    queryFn: () => optionListItemsApi.list(selectedOptionList, showInactive),
+    enabled: !!selectedOptionList,
+  });
+  const createCategory = useMutation({
+    mutationFn: (data: CreateCategoryInput) => categoriesApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+  const editCategory = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<Category> }) =>
+      categoriesApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+  const deleteCategory = useMutation({
+    mutationFn: (id: string) => categoriesApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
+      qc.invalidateQueries({ queryKey: ["options"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+      setSelectedCategory(undefined);
+      setSelectedSubcategory(undefined);
+      setSelectedOption(undefined);
+    },
+  });
+  const activateCategory = useMutation({
+    mutationFn: (id: string) => categoriesApi.activate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+
+  const createSubcategory = useMutation({
+    mutationFn: (data: CreateSubcategoryInput) => subcategoriesApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["subcategories"] }),
+  });
+  const editSubcategory = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<Subcategory> }) =>
+      subcategoriesApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["subcategories"] }),
+  });
+  const deleteSubcategory = useMutation({
+    mutationFn: (id: string) => subcategoriesApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
+      qc.invalidateQueries({ queryKey: ["options"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+      setSelectedSubcategory(undefined);
+      setSelectedOption(undefined);
+    },
+  });
+  const activateSubcategory = useMutation({
+    mutationFn: (id: string) => subcategoriesApi.activate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["subcategories"] }),
+  });
+  const createOption = useMutation({
+    mutationFn: (data: CreateOptionInput) => optionsApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["options"] }),
+  });
+  const editOption = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<Option> }) =>
+      optionsApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["options"] }),
+  });
+  const deleteOption = useMutation({
+    mutationFn: (id: string) => optionsApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["options"] });
+      qc.invalidateQueries({ queryKey: ["attributes"] });
+      setSelectedOption(undefined);
+    },
+  });
+  const activateOption = useMutation({
+    mutationFn: (id: string) => optionsApi.activate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["options"] }),
+  });
+
+  const createAttribute = useMutation({
+    mutationFn: (data: CreateAttributeInput) => attributesApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attributes"] }),
+  });
+  const editAttribute = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<Attribute> }) =>
+      attributesApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attributes"] }),
+  });
+  const deleteAttribute = useMutation({
+    mutationFn: (id: string) => attributesApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attributes"] }),
+  });
+  const activateAttribute = useMutation({
+    mutationFn: (id: string) => attributesApi.activate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["attributes"] }),
+  });
+
+  const createOptionList = useMutation({
+    mutationFn: (data: CreateOptionListInput) => optionListsApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["option-lists"] }),
+  });
+  const editOptionList = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<OptionList> }) =>
+      optionListsApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["option-lists"] }),
+  });
+  const deleteOptionList = useMutation({
+    mutationFn: (id: string) => optionListsApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["option-lists"] });
+      qc.invalidateQueries({ queryKey: ["option-list-items"] });
+      setSelectedOptionList(undefined);
+    },
+  });
+
+  const createOptionListItem = useMutation({
+    mutationFn: (data: CreateOptionListItemInput) => optionListItemsApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["option-list-items"] }),
+  });
+  const editOptionListItem = useMutation({
+    mutationFn: (data: { id: string; payload: Partial<OptionListItem> }) =>
+      optionListItemsApi.update(data.id, data.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["option-list-items"] }),
+  });
+  const deleteOptionListItem = useMutation({
+    mutationFn: (id: string) => optionListItemsApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["option-list-items"] }),
+  });
+
+  const dataTypes: Attribute["dataType"][] = useMemo(
+    () => ["string", "number", "boolean", "enum", "range", "json"],
+    [],
+  );
+  return (
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="header-left">
+          <div className="brand">Configurator Admin</div>
+          <div className="muted small">Manage catalog, lists, and attributes</div>
+        </div>
+        <div className="header-right">
+          <label className="small flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Show inactive
+          </label>
+          <div className="muted small">
+            API: {import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api"}
+          </div>
+        </div>
+      </header>
+
+      <div className="shell-body">
+        <nav className="side-nav">
+          <div className="nav-section">
+            <div className="nav-label">Catalog</div>
+            <NavButton
+              label="Categories"
+              count={categories.data?.length}
+              active={activeSection === "categories"}
+              onClick={() => setActiveSection("categories")}
+            />
+            <NavButton
+              label="Subcategories"
+              count={subcategories.data?.length}
+              disabled={!selectedCategory}
+              active={activeSection === "subcategories"}
+              onClick={() => setActiveSection("subcategories")}
+            />
+            <NavButton
+              label="Options"
+              count={options.data?.length}
+              disabled={!selectedSubcategory}
+              active={activeSection === "options"}
+              onClick={() => setActiveSection("options")}
+            />
+            <NavButton
+              label="Attributes"
+              count={attributes.data?.length}
+              disabled={!selectedOption}
+              active={activeSection === "attributes"}
+              onClick={() => setActiveSection("attributes")}
+            />
+          </div>
+          <div className="nav-section">
+            <div className="nav-label">Lists</div>
+            <NavButton
+              label="Option Lists"
+              count={optionLists.data?.length}
+              active={activeSection === "optionLists"}
+              onClick={() => setActiveSection("optionLists")}
+            />
+            <NavButton
+              label="List Items"
+              count={optionListItems.data?.length}
+              disabled={!selectedOptionList}
+              active={activeSection === "optionListItems"}
+              onClick={() => setActiveSection("optionListItems")}
+            />
+          </div>
+        </nav>
+
+        <main className="content">
+          {activeSection === "categories" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Categories</h2>
+                <span className="tag">{categories.data?.length ?? 0}</span>
+              </div>
+              <CategoriesForm onSubmit={createCategory.mutate} loading={createCategory.isPending} />
+              <List<Category>
+                items={categories.data ?? []}
+                selectedId={selectedCategory}
+                onSelect={(id) => {
+                  setSelectedCategory(id);
+                  setSelectedSubcategory(undefined);
+                  setSelectedOption(undefined);
+                }}
+                onDelete={(id) => deleteCategory.mutate(id)}
+                onActivate={(id) => activateCategory.mutate(id)}
+                onEdit={(cat) => {
+                  const name = prompt("Name", cat.name);
+                  if (!name) return;
+                  const description = prompt("Description", cat.description ?? "") ?? cat.description;
+                  const sortOrderRaw = prompt("Sort order", String(cat.sortOrder ?? 0));
+                  const sortOrder = sortOrderRaw ? Number(sortOrderRaw) : cat.sortOrder ?? 0;
+                  editCategory.mutate({ id: cat.id, payload: { name, description, sortOrder } });
+                }}
+                render={(cat) => (
+                  <>
+                    <div>
+                      <div>{cat.name}</div>
+                      <div className="muted">Sort: {cat.sortOrder ?? 0}</div>
+                    </div>
+                    {!cat.isActive && <span className="tag">inactive</span>}
+                  </>
+                )}
+              />
+              {categories.isLoading && <div className="muted">Loading...</div>}
+              {categories.error && <div className="error">{String(categories.error)}</div>}
+            </div>
+          )}
+
+          {activeSection === "subcategories" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Subcategories</h2>
+                <span className="tag">{subcategories.data?.length ?? 0}</span>
+              </div>
+              <SubcategoriesForm
+                disabled={!selectedCategory}
+                categoryId={selectedCategory}
+                onSubmit={createSubcategory.mutate}
+                loading={createSubcategory.isPending}
+              />
+              <List<Subcategory>
+                items={subcategories.data ?? []}
+                selectedId={selectedSubcategory}
+                onSelect={(id) => {
+                  setSelectedSubcategory(id);
+                  setSelectedOption(undefined);
+                }}
+                onDelete={(id) => deleteSubcategory.mutate(id)}
+                onActivate={(id) => activateSubcategory.mutate(id)}
+                onEdit={(sc) => {
+                  const name = prompt("Name", sc.name);
+                  if (!name) return;
+                  const description = prompt("Description", sc.description ?? "") ?? sc.description;
+                  const sortOrderRaw = prompt("Sort order", String(sc.sortOrder ?? 0));
+                  const sortOrder = sortOrderRaw ? Number(sortOrderRaw) : sc.sortOrder ?? 0;
+                  editSubcategory.mutate({
+                    id: sc.id,
+                    payload: { name, description, sortOrder },
+                  });
+                }}
+                render={(sc) => (
+                  <>
+                    <div>
+                      <div>{sc.name}</div>
+                      <div className="muted">Sort: {sc.sortOrder ?? 0}</div>
+                    </div>
+                    {!sc.isActive && <span className="tag">inactive</span>}
+                  </>
+                )}
+              />
+              {!selectedCategory && <div className="muted">Select a category to manage subcategories.</div>}
+              {subcategories.error && <div className="error">{String(subcategories.error)}</div>}
+            </div>
+          )}
+
+          {activeSection === "options" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Options</h2>
+                <span className="tag">{options.data?.length ?? 0}</span>
+              </div>
+              <OptionsForm
+                disabled={!selectedSubcategory}
+                subcategoryId={selectedSubcategory}
+                onSubmit={createOption.mutate}
+                loading={createOption.isPending}
+              />
+              <List<Option>
+                items={options.data ?? []}
+                selectedId={selectedOption}
+                onSelect={setSelectedOption}
+                onDelete={(id) => deleteOption.mutate(id)}
+                onActivate={(id) => activateOption.mutate(id)}
+                onEdit={(opt) => {
+                  const name = prompt("Name", opt.name);
+                  if (!name) return;
+                  const code = prompt("Code", opt.code);
+                  if (!code) return;
+                  const description = prompt("Description", opt.description ?? "") ?? opt.description;
+                  const sortOrderRaw = prompt("Sort order", String(opt.sortOrder ?? 0));
+                  const sortOrder = sortOrderRaw ? Number(sortOrderRaw) : opt.sortOrder ?? 0;
+                  editOption.mutate({
+                    id: opt.id,
+                    payload: { name, code, description, sortOrder },
+                  });
+                }}
+                render={(opt) => (
+                  <>
+                    <div>
+                      <div>
+                        {opt.name} <span className="muted">({opt.code})</span>
+                      </div>
+                      <div className="muted">Sort: {opt.sortOrder ?? 0}</div>
+                    </div>
+                    {!opt.isActive && <span className="tag">inactive</span>}
+                  </>
+                )}
+              />
+              {!selectedSubcategory && <div className="muted">Select a subcategory to manage options.</div>}
+              {options.error && <div className="error">{String(options.error)}</div>}
+            </div>
+          )}
+          {activeSection === "attributes" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Attributes</h2>
+                <span className="tag">{attributes.data?.length ?? 0}</span>
+              </div>
+              <AttributesForm
+                disabled={!selectedOption}
+                optionId={selectedOption}
+                optionLists={optionLists.data ?? []}
+                dataTypes={dataTypes}
+                onSubmit={createAttribute.mutate}
+                loading={createAttribute.isPending}
+              />
+              <List<Attribute>
+                items={attributes.data ?? []}
+                selectedId={undefined}
+                onSelect={() => undefined}
+                onDelete={(id) => deleteAttribute.mutate(id)}
+                onActivate={(id) => activateAttribute.mutate(id)}
+                onEdit={(attr) => {
+                  const label = prompt("Label", attr.label);
+                  if (!label) return;
+                  const key = prompt("Key", attr.key);
+                  if (!key) return;
+                  const sortOrderRaw = prompt("Sort order", String(attr.sortOrder ?? 0));
+                  const sortOrder = sortOrderRaw ? Number(sortOrderRaw) : attr.sortOrder ?? 0;
+                  editAttribute.mutate({
+                    id: attr.id,
+                    payload: { label, key, sortOrder },
+                  });
+                }}
+                render={(attr) => (
+                  <>
+                    <div>
+                      <div>
+                        {attr.label} <span className="muted">({attr.key})</span>
+                      </div>
+                      <div className="muted">Type: {attr.dataType}</div>
+                    </div>
+                    {!attr.isActive && <span className="tag">inactive</span>}
+                  </>
+                )}
+              />
+              {!selectedOption && <div className="muted">Select an option to manage attributes.</div>}
+              {attributes.error && <div className="error">{String(attributes.error)}</div>}
+            </div>
+          )}
+
+          {activeSection === "optionLists" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Option Lists</h2>
+                <span className="tag">{optionLists.data?.length ?? 0}</span>
+              </div>
+              <OptionListsForm
+                onSubmit={createOptionList.mutate}
+                loading={createOptionList.isPending}
+              />
+              <List<OptionList>
+                items={optionLists.data ?? []}
+                selectedId={selectedOptionList}
+                onSelect={setSelectedOptionList}
+                onDelete={(id) => deleteOptionList.mutate(id)}
+                onEdit={(ol) => {
+                  const name = prompt("Name", ol.name);
+                  if (!name) return;
+                  const description = prompt("Description", ol.description ?? "") ?? ol.description;
+                  editOptionList.mutate({ id: ol.id, payload: { name, description } });
+                }}
+                render={(ol) => (
+                  <>
+                    <div>
+                      <div>{ol.name}</div>
+                      <div className="muted">{ol.description}</div>
+                    </div>
+                  </>
+                )}
+              />
+              {optionLists.error && <div className="error">{String(optionLists.error)}</div>}
+            </div>
+          )}
+
+          {activeSection === "optionListItems" && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Option List Items</h2>
+                <span className="tag">{optionListItems.data?.length ?? 0}</span>
+              </div>
+              <OptionListItemsForm
+                disabled={!selectedOptionList}
+                optionListId={selectedOptionList}
+                onSubmit={createOptionListItem.mutate}
+                loading={createOptionListItem.isPending}
+              />
+              <List<OptionListItem>
+                items={optionListItems.data ?? []}
+                selectedId={undefined}
+                onSelect={() => undefined}
+                onDelete={(id) => deleteOptionListItem.mutate(id)}
+                onEdit={(item) => {
+                  const label = prompt("Label", item.label);
+                  if (!label) return;
+                  const value = prompt("Value", item.value);
+                  if (!value) return;
+                  const sortOrderRaw = prompt("Sort order", String(item.sortOrder ?? 0));
+                  const sortOrder = sortOrderRaw ? Number(sortOrderRaw) : item.sortOrder ?? 0;
+                  editOptionListItem.mutate({ id: item.id, payload: { label, value, sortOrder } });
+                }}
+                render={(item) => (
+                  <>
+                    <div>
+                      <div>
+                        {item.label} <span className="muted">({item.value})</span>
+                      </div>
+                      <div className="muted">Sort: {item.sortOrder ?? 0}</div>
+                    </div>
+                    {!item.isActive && <span className="tag">inactive</span>}
+                  </>
+                )}
+              />
+              {!selectedOptionList && <div className="muted">Select an option list to manage items.</div>}
+              {optionListItems.error && <div className="error">{String(optionListItems.error)}</div>}
+            </div>
+          )}
+        </main>
+      </div>
+      <footer className="footer">
+        <span className="small">Configurator Admin</span>
+        <span className="small">© {new Date().getFullYear()} | Gorman-Rupp inspired theme</span>
+      </footer>
+    </div>
+  );
+}
+function NavButton({
+  label,
+  count,
+  active,
+  disabled,
+  onClick,
+}:{
+  label: string;
+  count?: number;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`nav-link ${active ? "active" : ""}`}
+      disabled={disabled}
+      onClick={onClick}
+      style={disabled ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+    >
+      <span>{label}</span>
+      <span className="nav-badge">{count ?? 0}</span>
+    </button>
+  );
+}
+
+type ListProps<T extends { id: string }> = {
+  items: T[];
+  selectedId?: string;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  onActivate?: (id: string) => void;
+  onEdit?: (item: T) => void;
+  render: (item: T) => React.ReactNode;
+};
+
+function List<T extends { id: string }>({
+  items,
+  selectedId,
+  onSelect,
+  onDelete,
+  onActivate,
+  onEdit,
+  render,
+}: ListProps<T>) {
+  return (
+    <div className="list">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className={`item ${selectedId === item.id ? "active" : ""}`}
+          onClick={() => onSelect(item.id)}
+        >
+          <div>{render(item)}</div>
+          <div className="actions">
+            <button
+              className="btn secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item.id);
+              }}
+            >
+              Delete
+            </button>
+            {onEdit && (
+              <button
+                className="btn secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(item);
+                }}
+              >
+                Edit
+              </button>
+            )}
+            {onActivate && (
+              <button
+                className="btn secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onActivate(item.id);
+                }}
+              >
+                Activate
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      {!items.length && <div className="muted">No records yet.</div>}
+    </div>
+  );
+}
+
+function CategoriesForm({
+  onSubmit,
+  loading,
+}: {
+  onSubmit: (data: CreateCategoryInput) => void;
+  loading: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({ name, description, sortOrder });
+        setName("");
+        setDescription("");
+        setSortOrder(0);
+      }}
+    >
+      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <input
+        type="number"
+        placeholder="Sort order"
+        value={sortOrder}
+        onChange={(e) => setSortOrder(Number(e.target.value))}
+      />
+      <button className="btn" type="submit" disabled={loading || !name}>
+        Add Category
+      </button>
+    </form>
+  );
+}
+
+function SubcategoriesForm({
+  categoryId,
+  onSubmit,
+  loading,
+  disabled,
+}: {
+  categoryId?: string;
+  onSubmit: (data: CreateSubcategoryInput) => void;
+  loading: boolean;
+  disabled: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!categoryId) return;
+        onSubmit({ categoryId, name, description, sortOrder });
+        setName("");
+        setDescription("");
+        setSortOrder(0);
+      }}
+    >
+      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <input
+        type="number"
+        placeholder="Sort order"
+        value={sortOrder}
+        onChange={(e) => setSortOrder(Number(e.target.value))}
+      />
+      <button className="btn" type="submit" disabled={disabled || loading || !name}>
+        Add Subcategory
+      </button>
+    </form>
+  );
+}
+function OptionsForm({
+  subcategoryId,
+  onSubmit,
+  loading,
+  disabled,
+}: {
+  subcategoryId?: string;
+  onSubmit: (data: CreateOptionInput) => void;
+  loading: boolean;
+  disabled: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!subcategoryId) return;
+        onSubmit({ subcategoryId, name, code, description, sortOrder });
+        setName("");
+        setCode("");
+        setDescription("");
+        setSortOrder(0);
+      }}
+    >
+      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} required />
+      <input
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <input
+        type="number"
+        placeholder="Sort order"
+        value={sortOrder}
+        onChange={(e) => setSortOrder(Number(e.target.value))}
+      />
+      <button className="btn" type="submit" disabled={disabled || loading || !name || !code}>
+        Add Option
+      </button>
+    </form>
+  );
+}
+
+function AttributesForm({
+  optionId,
+  onSubmit,
+  loading,
+  disabled,
+  optionLists,
+  dataTypes,
+}: {
+  optionId?: string;
+  onSubmit: (data: CreateAttributeInput) => void;
+  loading: boolean;
+  disabled: boolean;
+  optionLists: OptionList[];
+  dataTypes: Attribute["dataType"][];
+}) {
+  const [label, setLabel] = useState("");
+  const [key, setKey] = useState("");
+  const [dataType, setDataType] = useState<Attribute["dataType"]>("string");
+  const [optionListId, setOptionListId] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState(0);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!optionId) return;
+        onSubmit({
+          optionId,
+          label,
+          key,
+          dataType,
+          optionListId: dataType === "enum" ? optionListId || null : null,
+          sortOrder,
+        });
+        setLabel("");
+        setKey("");
+        setOptionListId("");
+        setSortOrder(0);
+      }}
+    >
+      <div className="grid-two">
+        <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} required />
+        <input placeholder="Key" value={key} onChange={(e) => setKey(e.target.value)} required />
+      </div>
+      <div className="grid-two">
+        <select value={dataType} onChange={(e) => setDataType(e.target.value as Attribute["dataType"])}>
+          {dataTypes.map((dt) => (
+            <option key={dt} value={dt}>
+              {dt}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          placeholder="Sort order"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(Number(e.target.value))}
+        />
+      </div>
+      {dataType === "enum" && (
+        <select value={optionListId} onChange={(e) => setOptionListId(e.target.value)}>
+          <option value="">Select option list</option>
+          {optionLists.map((ol) => (
+            <option key={ol.id} value={ol.id}>
+              {ol.name}
+            </option>
+          ))}
+        </select>
+      )}
+      <button className="btn" type="submit" disabled={disabled || loading || !label || !key}>
+        Add Attribute
+      </button>
+    </form>
+  );
+}
+function OptionListsForm({
+  onSubmit,
+  loading,
+}: {
+  onSubmit: (data: CreateOptionListInput) => void;
+  loading: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({ name, description });
+        setName("");
+        setDescription("");
+      }}
+    >
+      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <input
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <button className="btn" type="submit" disabled={loading || !name}>
+        Add Option List
+      </button>
+    </form>
+  );
+}
+
+function OptionListItemsForm({
+  optionListId,
+  onSubmit,
+  loading,
+  disabled,
+}: {
+  optionListId?: string;
+  onSubmit: (data: CreateOptionListItemInput) => void;
+  loading: boolean;
+  disabled: boolean;
+}) {
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!optionListId) return;
+        onSubmit({ optionListId, label, value, sortOrder });
+        setLabel("");
+        setValue("");
+        setSortOrder(0);
+      }}
+    >
+      <div className="grid-two">
+        <input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} required />
+        <input placeholder="Value" value={value} onChange={(e) => setValue(e.target.value)} required />
+      </div>
+      <input
+        type="number"
+        placeholder="Sort order"
+        value={sortOrder}
+        onChange={(e) => setSortOrder(Number(e.target.value))}
+      />
+      <button className="btn" type="submit" disabled={disabled || loading || !label || !value}>
+        Add Item
+      </button>
+    </form>
+  );
+}
+
