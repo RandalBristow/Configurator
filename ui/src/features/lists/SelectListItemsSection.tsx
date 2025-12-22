@@ -127,18 +127,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     onError: (err) => toast.error(`Update failed: ${String(err)}`),
   });
 
-  const handleSaveList = () => {
-    if (!listName.trim()) {
-      toast.error("Name is required");
-      return;
-    }
-    if (currentList) {
-      updateList.mutate({ id: currentList.id, payload: { name: listName, description: listDescription } });
-    } else {
-      createList.mutate({ name: listName, description: listDescription });
-    }
-  };
-
   const handleRowChange = (id: string, key: keyof SelectListItem, value: any) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [key]: value } }));
@@ -306,17 +294,22 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     }
 
     try {
-      // Save list metadata
+      let listId = currentListId;
+      // Save list metadata (create first if needed to ensure we have an id)
       if (currentList) {
         await updateList.mutateAsync({ id: currentList.id, payload: { name: listName, description: listDescription } });
       } else {
         const created = await createList.mutateAsync({ name: listName, description: listDescription });
         const newId = (created as any)?.id;
         if (newId) {
+          listId = newId;
           setCurrentListId(newId);
           onSelectList(newId);
+        } else {
+          throw new Error("Could not create select list");
         }
       }
+      if (!listId) throw new Error("Select list id not available");
 
       // Save edited rows
       const draftEntries = Object.entries(drafts);
@@ -331,10 +324,10 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       }
 
       // Save new row if filled
-      if (newRow.value?.trim() && newRow.displayValue?.trim() && currentListId) {
+      if (newRow.value?.trim() && newRow.displayValue?.trim()) {
         await selectListItemsApi.create({
           ...newRow,
-          selectListId: currentListId,
+          selectListId: listId,
           order: Number(newRow.order) || 0,
         });
         setNewRow(EMPTY_ITEM);
@@ -423,23 +416,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                   onChange={(e) => setListDescription(e.target.value)}
                 />
               </div>
-            </div>
-            <div className="table-actions" style={{ marginTop: 6 }}>
-              <button
-                className="btn secondary"
-                type="button"
-                onClick={() => {
-                  setCurrentListId(undefined);
-                  setListName("");
-                  setListDescription("");
-                  onSelectList(undefined);
-                }}
-              >
-                New Select List
-              </button>
-              <button className="btn primary" type="button" onClick={handleSaveList} disabled={!listName.trim()}>
-                Save List
-              </button>
             </div>
           </div>
         </div>
