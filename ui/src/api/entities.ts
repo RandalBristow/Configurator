@@ -3,8 +3,10 @@ import type {
   Attribute,
   Category,
   Option,
-  OptionList,
-  OptionListItem,
+  SelectList,
+  SelectListGroupSet,
+  SelectListItem,
+  SelectListMembership,
   Subcategory,
 } from "../types/domain";
 
@@ -55,20 +57,32 @@ export const attributesApi = {
   activate: (id: string) => api.post<Attribute>(`/attributes/${id}/activate`),
 };
 
-export const optionListsApi = {
-  list: () => api.get<OptionList[]>("/option-lists"),
-  create: (data: Partial<OptionList>) => api.post<OptionList>("/option-lists", data),
-  update: (id: string, data: Partial<OptionList>) =>
-    api.put<OptionList>(`/option-lists/${id}`, data),
-  remove: (id: string) => api.del<OptionList>(`/option-lists/${id}`),
+export const selectListsApi = {
+  list: () => api.get<SelectList[]>("/select-lists"),
+  create: (data: Partial<SelectList>) => api.post<SelectList>("/select-lists", data),
+  update: (id: string, data: Partial<SelectList>) => api.put<SelectList>(`/select-lists/${id}`, data),
+  remove: (id: string) => api.del<SelectList>(`/select-lists/${id}`),
 };
 
-export const optionListItemsApi = {
-  list: (optionListId?: string, includeInactive?: boolean) =>
-    api.get<OptionListItem[]>("/option-list-items", { optionListId, includeInactive }),
-  create: (data: Partial<OptionListItem>) =>
-    api.post<OptionListItem>("/option-list-items", data),
-  update: (id: string, data: Partial<OptionListItem>) =>
-    api.put<OptionListItem>(`/option-list-items/${id}`, data),
-  remove: (id: string) => api.del<OptionListItem>(`/option-list-items/${id}`),
+export const selectListItemsApi = {
+  list: (selectListId?: string, includeInactive?: boolean) =>
+    api.get<SelectListItem[]>("/select-list-items", { selectListId, includeInactive }),
+  create: (data: Partial<SelectListItem>) => api.post<SelectListItem>("/select-list-items", data),
+  update: (id: string, data: Partial<SelectListItem>) => api.put<SelectListItem>(`/select-list-items/${id}`, data),
+  remove: (id: string) => api.del<SelectListItem>(`/select-list-items/${id}`),
+};
+
+export const selectListGroupsApi = {
+  listGroupSets: (selectListId: string) =>
+    api.get<SelectListGroupSet[]>(`/select-list-groups/${selectListId}/group-sets`),
+  listMemberships: (selectListId: string, groupId: string) =>
+    api.get<SelectListMembership[]>(`/select-list-groups/${selectListId}/groups/${groupId}/memberships`),
+  setMemberships: (selectListId: string, groupId: string, itemIds: string[]) =>
+    api.post<void>(`/select-list-groups/${selectListId}/groups/${groupId}/memberships`, { itemIds }),
+  createGroupSet: (selectListId: string, data: { name: string; description?: string | null }) =>
+    api.post<SelectListGroupSet>(`/select-list-groups/${selectListId}/group-sets`, data),
+  createGroup: (selectListId: string, setId: string, data: { name: string }) =>
+    api.post(`/select-list-groups/${selectListId}/group-sets/${setId}/groups`, data),
+  updateGroup: (selectListId: string, setId: string, groupId: string, data: { name: string }) =>
+    api.put(`/select-list-groups/${selectListId}/group-sets/${setId}/groups/${groupId}`, data),
 };

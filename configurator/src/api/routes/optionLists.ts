@@ -2,9 +2,9 @@ import { Router } from "express";
 import { optionListsService } from "../../services";
 import { validate } from "../middleware/validate";
 import {
-  optionListCreate,
-  optionListIdParams,
-  optionListUpdate,
+  selectListCreate,
+  selectListIdParams,
+  selectListUpdate,
 } from "../validators/optionLists";
 
 export const optionListsRouter = Router();
@@ -20,13 +20,13 @@ optionListsRouter.get("/", async (_req, res, next) => {
 
 optionListsRouter.get(
   "/:id",
-  validate({ params: optionListIdParams }),
+  validate({ params: selectListIdParams }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;
     const list = await optionListsService.get(id);
     if (!list) {
-      return res.status(404).json({ message: "Option list not found" });
+      return res.status(404).json({ message: "Select list not found" });
     }
     res.json(list);
   } catch (err) {
@@ -37,7 +37,7 @@ optionListsRouter.get(
 
 optionListsRouter.post(
   "/",
-  validate({ body: optionListCreate }),
+  validate({ body: selectListCreate }),
   async (req, res, next) => {
   try {
     const list = await optionListsService.create(req.body);
@@ -50,7 +50,7 @@ optionListsRouter.post(
 
 optionListsRouter.put(
   "/:id",
-  validate({ params: optionListIdParams, body: optionListUpdate }),
+  validate({ params: selectListIdParams, body: selectListUpdate }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;
@@ -64,7 +64,7 @@ optionListsRouter.put(
 
 optionListsRouter.delete(
   "/:id",
-  validate({ params: optionListIdParams }),
+  validate({ params: selectListIdParams }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;

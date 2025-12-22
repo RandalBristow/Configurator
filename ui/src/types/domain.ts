@@ -31,23 +31,44 @@ export type Attribute = {
   key: string;
   label: string;
   dataType: "string" | "number" | "boolean" | "enum" | "range" | "json";
-  optionListId?: string | null;
+  selectListId?: string | null;
   defaultExpression?: string | null;
   sortOrder: number;
   isActive: boolean;
 };
 
-export type OptionList = {
+export type SelectList = {
   id: string;
   name: string;
   description?: string | null;
 };
 
-export type OptionListItem = {
+export type SelectListItem = {
   id: string;
-  optionListId: string;
+  selectListId: string;
   value: string;
-  label: string;
-  sortOrder: number;
+  displayValue: string;
+  order: number;
   isActive: boolean;
+  tooltip?: string | null;
+  comments?: string | null;
+};
+
+export type SelectListGroup = {
+  id: string;
+  setId: string;
+  name: string;
+};
+
+export type SelectListGroupSet = {
+  id: string;
+  selectListId: string;
+  name: string;
+  description?: string | null;
+  groups: SelectListGroup[];
+};
+
+export type SelectListMembership = {
+  itemId: string;
+  groupId: string;
 };

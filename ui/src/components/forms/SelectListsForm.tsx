@@ -1,13 +1,13 @@
 import { useState } from "react";
-import type { OptionList } from "../../types/domain";
+import type { SelectList } from "../../types/domain";
 
-export type CreateOptionListInput = Partial<OptionList>;
+export type CreateSelectListInput = Partial<SelectList>;
 
-export function OptionListsForm({
+export function SelectListsForm({
   onSubmit,
   loading,
 }: {
-  onSubmit: (data: CreateOptionListInput) => void;
+  onSubmit: (data: CreateSelectListInput) => void;
   loading: boolean;
 }) {
   const [name, setName] = useState("");
@@ -30,7 +30,7 @@ export function OptionListsForm({
         onChange={(e) => setDescription(e.target.value)}
       />
       <button className="btn" type="submit" disabled={loading || !name}>
-        Add Option List
+        Add Select List
       </button>
     </form>
   );

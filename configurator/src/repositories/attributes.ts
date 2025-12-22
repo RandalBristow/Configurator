@@ -11,7 +11,7 @@ export type CreateAttributeInput = {
   key: string;
   label: string;
   dataType: AttributeDataType;
-  optionListId?: string | null;
+  selectListId?: string | null;
   defaultExpression?: string | null;
   sortOrder?: number;
   isActive?: boolean;
@@ -21,7 +21,7 @@ export type UpdateAttributeInput = {
   key?: string;
   label?: string;
   dataType?: AttributeDataType;
-  optionListId?: string | null;
+  selectListId?: string | null;
   defaultExpression?: string | null;
   sortOrder?: number;
   isActive?: boolean;
@@ -59,7 +59,7 @@ export async function createAttribute(
       key: input.key,
       label: input.label,
       dataType: input.dataType,
-      optionListId: input.optionListId ?? null,
+      selectListId: input.selectListId ?? null,
       defaultExpression: input.defaultExpression ?? null,
       sortOrder: input.sortOrder ?? 0,
       isActive: input.isActive ?? true,

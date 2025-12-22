@@ -17,7 +17,7 @@ export const attributeCreate = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
   dataType: z.enum(["string", "number", "boolean", "enum", "range", "json"]),
-  optionListId: z.string().uuid().nullable().optional(),
+  selectListId: z.string().uuid().nullable().optional(),
   defaultExpression: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),

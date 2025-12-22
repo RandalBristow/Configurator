@@ -5,6 +5,7 @@ import { optionsRouter } from "./options";
 import { attributesRouter } from "./attributes";
 import { optionListsRouter } from "./optionLists";
 import { optionListItemsRouter } from "./optionListItems";
+import { selectListGroupsRouter } from "./selectListGroups";
 
 export const apiRouter = Router();
 
@@ -12,5 +13,6 @@ apiRouter.use("/categories", categoriesRouter);
 apiRouter.use("/subcategories", subcategoriesRouter);
 apiRouter.use("/options", optionsRouter);
 apiRouter.use("/attributes", attributesRouter);
-apiRouter.use("/option-lists", optionListsRouter);
-apiRouter.use("/option-list-items", optionListItemsRouter);
+apiRouter.use("/select-lists", optionListsRouter);
+apiRouter.use("/select-list-items", optionListItemsRouter);
+apiRouter.use("/select-list-groups", selectListGroupsRouter);

@@ -47,7 +47,7 @@ async function main() {
     },
   });
 
-  await prisma.optionList.upsert({
+  await prisma.selectList.upsert({
     where: { id: optionListId },
     update: {
       name: "VoltageLevels",
@@ -60,40 +60,40 @@ async function main() {
     },
   });
 
-  await prisma.optionListItem.upsert({
+  await prisma.selectListItem.upsert({
     where: { id: optionListItem208Id },
     update: {
-      optionListId,
+      selectListId: optionListId,
       value: "208",
-      label: "208V",
-      sortOrder: 1,
+      displayValue: "208V",
+      order: 1,
       isActive: true,
     },
     create: {
       id: optionListItem208Id,
-      optionListId,
+      selectListId: optionListId,
       value: "208",
-      label: "208V",
-      sortOrder: 1,
+      displayValue: "208V",
+      order: 1,
       isActive: true,
     },
   });
 
-  await prisma.optionListItem.upsert({
+  await prisma.selectListItem.upsert({
     where: { id: optionListItem480Id },
     update: {
-      optionListId,
+      selectListId: optionListId,
       value: "480",
-      label: "480V",
-      sortOrder: 2,
+      displayValue: "480V",
+      order: 2,
       isActive: true,
     },
     create: {
       id: optionListItem480Id,
-      optionListId,
+      selectListId: optionListId,
       value: "480",
-      label: "480V",
-      sortOrder: 2,
+      displayValue: "480V",
+      order: 2,
       isActive: true,
     },
   });

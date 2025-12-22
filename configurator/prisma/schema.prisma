@@ -68,7 +68,7 @@ model Attribute {
   key               String            @unique
   label             String
   dataType          AttributeDataType
-  optionListId      String?
+  selectListId      String?
   defaultExpression String?
   sortOrder         Int               @default(0)
   isActive          Boolean           @default(true)
@@ -76,29 +76,92 @@ model Attribute {
   updatedAt         DateTime          @updatedAt
 
   option     Option      @relation(fields: [optionId], references: [id], onDelete: Cascade)
-  optionList OptionList? @relation(fields: [optionListId], references: [id])
+  selectList SelectList? @relation(fields: [selectListId], references: [id])
 }
 
-model OptionList {
-  id          String            @id @default(uuid())
-  name        String            @unique
+model SelectList {
+  id          String             @id @default(uuid())
+  name        String             @unique
   description String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  items       OptionListItem[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       SelectListItem[]
   attributes  Attribute[]
+  groupSets   SelectListGroupSet[]
 }
 
-model OptionListItem {
-  id           String     @id @default(uuid())
-  optionListId String
-  value        String
-  label        String
-  sortOrder    Int        @default(0)
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+model SelectListItem {
+  id            String                  @id @default(uuid())
+  selectListId  String
+  value         String
+  displayValue  String
+  order         Int                     @default(0)
+  isActive      Boolean                 @default(true)
+  tooltip       String?
+  comments      String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  properties    SelectListItemProperty[]
+  memberships   SelectListItemGroup[]
 
-  optionList OptionList @relation(fields: [optionListId], references: [id], onDelete: Cascade)
+  selectList SelectList @relation(fields: [selectListId], references: [id], onDelete: Cascade)
+}
+
+enum SelectListPropertyType {
+  string
+  number
+  boolean
+  datetime
+}
+
+model SelectListItemProperty {
+  id        String                  @id @default(uuid())
+  itemId    String
+  key       String
+  value     String
+  dataType  SelectListPropertyType
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  item SelectListItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, key])
+}
+
+model SelectListGroupSet {
+  id           String               @id @default(uuid())
+  selectListId String
+  name         String
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  groups       SelectListGroup[]
+
+  selectList SelectList @relation(fields: [selectListId], references: [id], onDelete: Cascade)
+
+  @@unique([selectListId, name])
+}
+
+model SelectListGroup {
+  id      String              @id @default(uuid())
+  setId   String
+  name    String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  members SelectListItemGroup[]
+
+  groupSet SelectListGroupSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, name])
+}
+
+model SelectListItemGroup {
+  itemId  String
+  groupId String
+
+  item  SelectListItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  group SelectListGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, groupId])
 }
         

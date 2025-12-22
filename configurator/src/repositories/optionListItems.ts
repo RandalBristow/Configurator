@@ -1,36 +1,40 @@
-import type { Prisma, PrismaClient, OptionListItem } from "@prisma/client";
+import type { Prisma, PrismaClient, SelectListItem } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma/client";
 
 export type CreateOptionListItemInput = {
-  optionListId: string;
+  selectListId: string;
   value: string;
-  label: string;
-  sortOrder?: number;
+  displayValue: string;
+  order?: number;
   isActive?: boolean;
+  tooltip?: string | null;
+  comments?: string | null;
 };
 
 export type UpdateOptionListItemInput = {
   value?: string;
-  label?: string;
-  sortOrder?: number;
+  displayValue?: string;
+  order?: number;
   isActive?: boolean;
+  tooltip?: string | null;
+  comments?: string | null;
 };
 
 type PrismaClientOrTx = Prisma.TransactionClient | PrismaClient;
 const withClient = (client?: PrismaClientOrTx) => client ?? defaultPrisma;
 
 export async function listOptionListItems(opts?: {
-  optionListId?: string;
+  selectListId?: string;
   includeInactive?: boolean;
   client?: PrismaClientOrTx;
-}): Promise<OptionListItem[]> {
+}): Promise<SelectListItem[]> {
   const client = withClient(opts?.client);
-  return client.optionListItem.findMany({
+  return client.selectListItem.findMany({
     where: {
-      ...(opts?.optionListId ? { optionListId: opts.optionListId } : {}),
+      ...(opts?.selectListId ? { selectListId: opts.selectListId } : {}),
       ...(opts?.includeInactive ? {} : { isActive: true }),
     },
-    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    orderBy: [{ order: "asc" }, { displayValue: "asc" }],
   });
 }
 
@@ -38,20 +42,22 @@ export async function getOptionListItemById(
   id: string,
   client?: PrismaClientOrTx,
 ) {
-  return withClient(client).optionListItem.findUnique({ where: { id } });
+  return withClient(client).selectListItem.findUnique({ where: { id } });
 }
 
 export async function createOptionListItem(
   input: CreateOptionListItemInput,
   client?: PrismaClientOrTx,
-): Promise<OptionListItem> {
-  return withClient(client).optionListItem.create({
+): Promise<SelectListItem> {
+  return withClient(client).selectListItem.create({
     data: {
-      optionListId: input.optionListId,
+      selectListId: input.selectListId,
       value: input.value,
-      label: input.label,
-      sortOrder: input.sortOrder ?? 0,
+      displayValue: input.displayValue,
+      order: input.order ?? 0,
       isActive: input.isActive ?? true,
+      tooltip: input.tooltip ?? null,
+      comments: input.comments ?? null,
     },
   });
 }
@@ -60,8 +66,8 @@ export async function updateOptionListItem(
   id: string,
   input: UpdateOptionListItemInput,
   client?: PrismaClientOrTx,
-): Promise<OptionListItem> {
-  return withClient(client).optionListItem.update({
+): Promise<SelectListItem> {
+  return withClient(client).selectListItem.update({
     where: { id },
     data: { ...input },
   });
@@ -70,8 +76,8 @@ export async function updateOptionListItem(
 export async function deactivateOptionListItem(
   id: string,
   client?: PrismaClientOrTx,
-): Promise<OptionListItem> {
-  return withClient(client).optionListItem.update({
+): Promise<SelectListItem> {
+  return withClient(client).selectListItem.update({
     where: { id },
     data: { isActive: false },
   });
@@ -81,5 +87,5 @@ export async function deleteOptionListItem(
   id: string,
   client?: PrismaClientOrTx,
 ) {
-  return withClient(client).optionListItem.delete({ where: { id } });
+  return withClient(client).selectListItem.delete({ where: { id } });
 }

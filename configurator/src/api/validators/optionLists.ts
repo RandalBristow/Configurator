@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-export const optionListIdParams = z.object({
+export const selectListIdParams = z.object({
   id: z.string().uuid(),
 });
 
-export const optionListCreate = z.object({
+export const selectListCreate = z.object({
   name: z.string().min(1),
   description: z.string().nullable().optional(),
 });
 
-export const optionListUpdate = optionListCreate.partial();
+export const selectListUpdate = selectListCreate.partial();

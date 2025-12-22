@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Attribute, OptionList } from "../../types/domain";
+import type { Attribute, SelectList } from "../../types/domain";
 
 export type CreateAttributeInput = Partial<Attribute>;
 
@@ -15,13 +15,13 @@ export function AttributesForm({
   onSubmit: (data: CreateAttributeInput) => void;
   loading: boolean;
   disabled: boolean;
-  optionLists: OptionList[];
+  optionLists: SelectList[];
   dataTypes: Attribute["dataType"][];
 }) {
   const [label, setLabel] = useState("");
   const [key, setKey] = useState("");
   const [dataType, setDataType] = useState<Attribute["dataType"]>("string");
-  const [optionListId, setOptionListId] = useState<string>("");
+  const [selectListId, setSelectListId] = useState<string>("");
   const [sortOrder, setSortOrder] = useState(0);
 
   return (
@@ -35,12 +35,12 @@ export function AttributesForm({
           label,
           key,
           dataType,
-          optionListId: dataType === "enum" ? optionListId || null : null,
+          selectListId: dataType === "enum" ? selectListId || null : null,
           sortOrder,
         });
         setLabel("");
         setKey("");
-        setOptionListId("");
+        setSelectListId("");
         setSortOrder(0);
       }}
     >
@@ -64,8 +64,8 @@ export function AttributesForm({
         />
       </div>
       {dataType === "enum" && (
-        <select value={optionListId} onChange={(e) => setOptionListId(e.target.value)}>
-          <option value="">Select option list</option>
+        <select value={selectListId} onChange={(e) => setSelectListId(e.target.value)}>
+          <option value="">Select select list</option>
           {optionLists.map((ol) => (
             <option key={ol.id} value={ol.id}>
               {ol.name}

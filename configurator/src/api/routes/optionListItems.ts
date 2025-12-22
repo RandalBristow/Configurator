@@ -2,10 +2,10 @@ import { Router } from "express";
 import { optionListItemsService } from "../../services";
 import { validate } from "../middleware/validate";
 import {
-  optionListItemCreate,
-  optionListItemIdParams,
-  optionListItemQuery,
-  optionListItemUpdate,
+  selectListItemCreate,
+  selectListItemIdParams,
+  selectListItemQuery,
+  selectListItemUpdate,
 } from "../validators/optionListItems";
 
 export const optionListItemsRouter = Router();
@@ -14,13 +14,13 @@ const asBool = (val: unknown) => val === true || val === "true";
 
 optionListItemsRouter.get(
   "/",
-  validate({ query: optionListItemQuery }),
+  validate({ query: selectListItemQuery }),
   async (req, res, next) => {
   try {
     const includeInactive = asBool(req.query.includeInactive);
-    const optionListId = req.query.optionListId as string | undefined;
-    const args: { optionListId?: string; includeInactive?: boolean } = {};
-    if (optionListId) args.optionListId = optionListId;
+    const selectListId = req.query.selectListId as string | undefined;
+    const args: { selectListId?: string; includeInactive?: boolean } = {};
+    if (selectListId) args.selectListId = selectListId;
     if (includeInactive !== undefined) args.includeInactive = includeInactive;
     const items = await optionListItemsService.list(args);
     res.json(items);
@@ -32,7 +32,7 @@ optionListItemsRouter.get(
 
 optionListItemsRouter.get(
   "/:id",
-  validate({ params: optionListItemIdParams }),
+  validate({ params: selectListItemIdParams }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;
@@ -49,7 +49,7 @@ optionListItemsRouter.get(
 
 optionListItemsRouter.post(
   "/",
-  validate({ body: optionListItemCreate }),
+  validate({ body: selectListItemCreate }),
   async (req, res, next) => {
   try {
     const item = await optionListItemsService.create(req.body);
@@ -62,7 +62,7 @@ optionListItemsRouter.post(
 
 optionListItemsRouter.put(
   "/:id",
-  validate({ params: optionListItemIdParams, body: optionListItemUpdate }),
+  validate({ params: selectListItemIdParams, body: selectListItemUpdate }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;
@@ -76,7 +76,7 @@ optionListItemsRouter.put(
 
 optionListItemsRouter.delete(
   "/:id",
-  validate({ params: optionListItemIdParams }),
+  validate({ params: selectListItemIdParams }),
   async (req, res, next) => {
   try {
     const id = req.params.id as string;

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { attributesApi, optionListsApi } from "../../api/entities";
+import { attributesApi, selectListsApi } from "../../api/entities";
 import { AttributesForm } from "../../components/forms/AttributesForm";
 import { List } from "../../components/List";
 import type { Attribute } from "../../types/domain";
@@ -19,8 +19,8 @@ export function AttributesSection({ showInactive, optionId }: Props) {
   });
 
   const optionLists = useQuery({
-    queryKey: ["option-lists"],
-    queryFn: () => optionListsApi.list(),
+    queryKey: ["select-lists"],
+    queryFn: () => selectListsApi.list(),
   });
 
   const createAttribute = useMutation({

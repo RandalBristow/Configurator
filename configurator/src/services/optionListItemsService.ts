@@ -12,16 +12,16 @@ type Client = Prisma.TransactionClient | PrismaClient;
 
 export const optionListItemsService = {
   list: (opts?: {
-    optionListId?: string;
+    selectListId?: string;
     includeInactive?: boolean;
     client?: Client;
   }) => {
     const args: {
-      optionListId?: string;
+      selectListId?: string;
       includeInactive?: boolean;
       client?: Client;
     } = {};
-    if (opts?.optionListId) args.optionListId = opts.optionListId;
+    if (opts?.selectListId) args.selectListId = opts.selectListId;
     if (opts?.includeInactive !== undefined) args.includeInactive = opts.includeInactive;
     if (opts?.client) args.client = opts.client;
     return listOptionListItems(args);

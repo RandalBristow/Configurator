@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient, OptionList } from "@prisma/client";
+import type { Prisma, PrismaClient, SelectList } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma/client";
 
 export type CreateOptionListInput = {
@@ -15,20 +15,20 @@ type PrismaClientOrTx = Prisma.TransactionClient | PrismaClient;
 const withClient = (client?: PrismaClientOrTx) => client ?? defaultPrisma;
 
 export async function listOptionLists(client?: PrismaClientOrTx) {
-  return withClient(client).optionList.findMany({
+  return withClient(client).selectList.findMany({
     orderBy: [{ name: "asc" }],
   });
 }
 
 export async function getOptionListById(id: string, client?: PrismaClientOrTx) {
-  return withClient(client).optionList.findUnique({ where: { id } });
+  return withClient(client).selectList.findUnique({ where: { id } });
 }
 
 export async function createOptionList(
   input: CreateOptionListInput,
   client?: PrismaClientOrTx,
-): Promise<OptionList> {
-  return withClient(client).optionList.create({
+): Promise<SelectList> {
+  return withClient(client).selectList.create({
     data: {
       name: input.name,
       description: input.description ?? null,
@@ -40,13 +40,13 @@ export async function updateOptionList(
   id: string,
   input: UpdateOptionListInput,
   client?: PrismaClientOrTx,
-): Promise<OptionList> {
-  return withClient(client).optionList.update({
+): Promise<SelectList> {
+  return withClient(client).selectList.update({
     where: { id },
     data: { ...input },
   });
 }
 
 export async function deleteOptionList(id: string, client?: PrismaClientOrTx) {
-  return withClient(client).optionList.delete({ where: { id } });
+  return withClient(client).selectList.delete({ where: { id } });
 }
