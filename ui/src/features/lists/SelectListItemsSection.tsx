@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clipboard, Copy, Eraser, Plus, Trash2, Upload } from "lucide-react";
+import { Clipboard, Copy, Eraser, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { selectListItemsApi, selectListsApi } from "../../api/entities";
 import type { SelectList, SelectListItem } from "../../types/domain";
@@ -34,6 +34,8 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const [newRow, setNewRow] = useState<Partial<SelectListItem>>(EMPTY_ITEM);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
+  const newRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [creatingNewRow, setCreatingNewRow] = useState(false);
 
   const listsQuery = useQuery({
     queryKey: ["select-lists"],
@@ -178,6 +180,8 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       toast.error("Value and Display Value are required.");
       return;
     }
+    if (creatingNewRow) return;
+    setCreatingNewRow(true);
     itemsCreate.mutate(
       {
         ...newRow,
@@ -189,6 +193,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
           setNewRow(EMPTY_ITEM);
           newRowFirstInputRef.current?.focus();
         },
+        onSettled: () => setCreatingNewRow(false),
       },
     );
   };
@@ -329,6 +334,14 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const listCount = listsQuery.data?.length ?? 0;
   const selectionLabel = selectedIds.size ? `${selectedIds.size} selected` : "No selection";
 
+  const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
+    const next = e.relatedTarget as HTMLElement | null;
+    if (newRowRef.current && next && newRowRef.current.contains(next)) return;
+    if (newRow.value?.trim() && newRow.displayValue?.trim()) {
+      handleCreate();
+    }
+  };
+
   return (
     <div className="inspector-shell">
       <div className="card full-width">
@@ -425,15 +438,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
 
         <div className="selection-bar">
           <div className="selection-bar__actions">
-            <button
-              className="icon-btn"
-              type="button"
-              title="Add value"
-              onClick={handleCreate}
-              disabled={!listName.trim()}
-            >
-              <Plus size={16} />
-            </button>
             <button className="icon-btn" type="button" title="Import from clipboard" onClick={handleImportClipboard}>
               <Clipboard size={16} />
             </button>
@@ -576,7 +580,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                 );
               })}
 
-              <tr className="new-row">
+              <tr className="new-row" ref={newRowRef} onBlur={handleNewRowBlur}>
                 <td className="center">
                   <button className="row-select-handle" type="button" disabled>
                     •
