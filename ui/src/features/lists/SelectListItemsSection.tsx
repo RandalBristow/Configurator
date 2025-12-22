@@ -35,7 +35,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
   const newRowRef = useRef<HTMLTableRowElement | null>(null);
-  const [creatingNewRow, setCreatingNewRow] = useState(false);
 
   const listsQuery = useQuery({
     queryKey: ["select-lists"],
@@ -85,10 +84,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       setRows(itemsQuery.data);
       setDrafts({});
       setSelectedIds(new Set());
-    } else if (!currentListId) {
-      setRows([]);
-      setDrafts({});
-      setSelectedIds(new Set());
+      setNewRow(EMPTY_ITEM);
     }
   }, [itemsQuery.data, currentListId]);
 
@@ -109,23 +105,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     onSuccess: async (_, vars) => {
       await qc.invalidateQueries({ queryKey: ["select-lists"] });
       toast.success(`Saved "${vars.payload.name ?? ""}"`);
-    },
-    onError: (err) => toast.error(`Update failed: ${String(err)}`),
-  });
-
-  const itemsCreate = useMutation({
-    mutationFn: (data: Partial<SelectListItem>) => selectListItemsApi.create(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["select-list-items"] });
-    },
-    onError: (err) => toast.error(`Add failed: ${String(err)}`),
-  });
-
-  const itemsUpdate = useMutation({
-    mutationFn: (data: { id: string; payload: Partial<SelectListItem> }) =>
-      selectListItemsApi.update(data.id, data.payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["select-list-items"] });
     },
     onError: (err) => toast.error(`Update failed: ${String(err)}`),
   });
@@ -158,44 +137,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const handleRowChange = (id: string, key: keyof SelectListItem, value: any) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [key]: value } }));
-  };
-
-  const handleRowBlur = (id: string) => {
-    const draft = drafts[id];
-    if (!draft || Object.keys(draft).length === 0) return;
-    itemsUpdate.mutate({ id, payload: draft });
-    setDrafts((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
-
-  const handleCreate = () => {
-    if (!currentListId) {
-      toast.error("Select a list first.");
-      return;
-    }
-    if (!newRow.value?.trim() || !newRow.displayValue?.trim()) {
-      toast.error("Value and Display Value are required.");
-      return;
-    }
-    if (creatingNewRow) return;
-    setCreatingNewRow(true);
-    itemsCreate.mutate(
-      {
-        ...newRow,
-        selectListId: currentListId,
-        order: Number(newRow.order) || 0,
-      },
-      {
-        onSuccess: () => {
-          setNewRow(EMPTY_ITEM);
-          newRowFirstInputRef.current?.focus();
-        },
-        onSettled: () => setCreatingNewRow(false),
-      },
-    );
   };
 
   const handleDeleteSelected = () => {
@@ -337,8 +278,51 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
     const next = e.relatedTarget as HTMLElement | null;
     if (newRowRef.current && next && newRowRef.current.contains(next)) return;
-    if (newRow.value?.trim() && newRow.displayValue?.trim()) {
-      handleCreate();
+    // no-op for now; save handled by explicit Save action
+  };
+
+  const handleSaveAll = async () => {
+    if (!listName.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+
+    try {
+      // Save list metadata
+      if (currentList) {
+        await updateList.mutateAsync({ id: currentList.id, payload: { name: listName, description: listDescription } });
+      } else {
+        const created = await createList.mutateAsync({ name: listName, description: listDescription });
+        const newId = (created as any)?.id;
+        if (newId) {
+          setCurrentListId(newId);
+          onSelectList(newId);
+        }
+      }
+
+      // Save edited rows
+      const draftEntries = Object.entries(drafts);
+      for (const [id, payload] of draftEntries) {
+        if (Object.keys(payload).length === 0) continue;
+        await selectListItemsApi.update(id, payload);
+      }
+
+      // Save new row if filled
+      if (newRow.value?.trim() && newRow.displayValue?.trim() && currentListId) {
+        await selectListItemsApi.create({
+          ...newRow,
+          selectListId: currentListId,
+          order: Number(newRow.order) || 0,
+        });
+        setNewRow(EMPTY_ITEM);
+      }
+
+      setDrafts({});
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["select-list-items"] });
+      toast.success("Changes saved");
+    } catch (err) {
+      toast.error(String(err));
     }
   };
 
@@ -354,7 +338,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
             <button className="btn secondary" type="button" onClick={() => qc.invalidateQueries()}>
               Reset
             </button>
-            <button className="btn primary" type="button" onClick={handleSaveList} disabled={!listName.trim()}>
+            <button className="btn primary" type="button" onClick={handleSaveAll} disabled={!listName.trim()}>
               Save
             </button>
           </div>
@@ -524,7 +508,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         className="table-input"
                         value={row.value}
                         onChange={(e) => handleRowChange(row.id, "value", e.target.value)}
-                        onBlur={() => handleRowBlur(row.id)}
                         onFocus={handleFocusSelectAll}
                       />
                     </td>
@@ -533,7 +516,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         className="table-input"
                         value={row.displayValue}
                         onChange={(e) => handleRowChange(row.id, "displayValue", e.target.value)}
-                        onBlur={() => handleRowBlur(row.id)}
                         onFocus={handleFocusSelectAll}
                       />
                     </td>
@@ -543,7 +525,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         type="number"
                         value={row.order}
                         onChange={(e) => handleRowChange(row.id, "order", Number(e.target.value) || 0)}
-                        onBlur={() => handleRowBlur(row.id)}
                         onFocus={handleFocusSelectAll}
                       />
                     </td>
@@ -554,7 +535,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         checked={row.isActive}
                         onChange={(e) => {
                           handleRowChange(row.id, "isActive", e.target.checked);
-                          handleRowBlur(row.id);
                         }}
                       />
                     </td>
@@ -563,7 +543,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         className="table-input"
                         value={row.tooltip ?? ""}
                         onChange={(e) => handleRowChange(row.id, "tooltip", e.target.value)}
-                        onBlur={() => handleRowBlur(row.id)}
                         onFocus={handleFocusSelectAll}
                       />
                     </td>
@@ -572,7 +551,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
                         className="table-input"
                         value={row.comments ?? ""}
                         onChange={(e) => handleRowChange(row.id, "comments", e.target.value)}
-                        onBlur={() => handleRowBlur(row.id)}
                         onFocus={handleFocusSelectAll}
                       />
                     </td>
@@ -581,11 +559,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
               })}
 
               <tr className="new-row" ref={newRowRef} onBlur={handleNewRowBlur}>
-                <td className="center">
-                  <button className="row-select-handle" type="button" disabled>
-                    •
-                  </button>
-                </td>
+                <td className="center"></td>
                 <td>
                   <input
                     ref={newRowFirstInputRef}
