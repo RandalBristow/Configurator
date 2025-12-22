@@ -4,6 +4,16 @@ import { Clipboard, Copy, Eraser, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { selectListItemsApi, selectListsApi } from "../../api/entities";
 import type { SelectList, SelectListItem } from "../../types/domain";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 
 type Props = {
   showInactive: boolean;
@@ -33,8 +43,15 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const [drafts, setDrafts] = useState<DraftMap>({});
   const [newRow, setNewRow] = useState<Partial<SelectListItem>>(EMPTY_ITEM);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
   const newRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const listsQuery = useQuery({
     queryKey: ["select-lists"],
@@ -84,6 +101,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       setRows(itemsQuery.data);
       setDrafts({});
       setSelectedIds(new Set());
+      setPendingDeletes(new Set());
       setNewRow(EMPTY_ITEM);
     }
   }, [itemsQuery.data, currentListId]);
@@ -109,19 +127,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     onError: (err) => toast.error(`Update failed: ${String(err)}`),
   });
 
-  const itemsDelete = useMutation({
-    mutationFn: async (ids: string[]) => {
-      for (const id of ids) {
-        await selectListItemsApi.remove(id);
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["select-list-items"] });
-      setSelectedIds(new Set());
-    },
-    onError: (err) => toast.error(`Delete failed: ${String(err)}`),
-  });
-
   const handleSaveList = () => {
     if (!listName.trim()) {
       toast.error("Name is required");
@@ -142,8 +147,20 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const handleDeleteSelected = () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) return;
-    if (!window.confirm(`Delete ${ids.length} row(s)?`)) return;
-    itemsDelete.mutate(ids);
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${ids.length} row(s)?`,
+      description: "This cannot be undone.",
+      onConfirm: async () => {
+        setPendingDeletes((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+        setSelectedIds(new Set());
+        setRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+      },
+    });
   };
 
   const toggleSelect = (id: string) => {
@@ -156,8 +173,9 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   };
 
   const toggleSelectAll = () => {
-    if (!rows.length) return;
-    const allIds = rows.map((r) => r.id);
+    const visibleRows = rows.filter((r) => !pendingDeletes.has(r.id));
+    if (!visibleRows.length) return;
+    const allIds = visibleRows.map((r) => r.id);
     const allSelected = allIds.every((id) => selectedIds.has(id));
     setSelectedIds(allSelected ? new Set() : new Set(allIds));
   };
@@ -168,7 +186,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     if (!selectedIds.size) return;
     const headers = ["Value", "Display Value", "Order", "Active", "Tooltip", "Comments"];
     const lines = rows
-      .filter((r) => selectedIds.has(r.id))
+      .filter((r) => selectedIds.has(r.id) && !pendingDeletes.has(r.id))
       .map((r) =>
         [
           r.value,
@@ -307,6 +325,11 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
         await selectListItemsApi.update(id, payload);
       }
 
+      // Delete rows
+      for (const id of Array.from(pendingDeletes)) {
+        await selectListItemsApi.remove(id);
+      }
+
       // Save new row if filled
       if (newRow.value?.trim() && newRow.displayValue?.trim() && currentListId) {
         await selectListItemsApi.create({
@@ -318,6 +341,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       }
 
       setDrafts({});
+      setPendingDeletes(new Set());
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["select-list-items"] });
       toast.success("Changes saved");
@@ -459,7 +483,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
             </button>
           </div>
           <div className="selection-bar__spacer" />
-          <div className="selection-bar__label">{selectionLabel}</div>
+        <div className="selection-bar__label">{selectionLabel}</div>
         </div>
 
         <div className="table-pane">
@@ -638,6 +662,36 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
           </div>
         </div>
       </div>
+
+      {confirmDialog && (
+        <AlertDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmDialog(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+              {confirmDialog.description && (
+                <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
+              )}
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmDialog(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const action = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  action();
+                }}
+              >
+                Confirm
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
