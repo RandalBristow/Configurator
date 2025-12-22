@@ -80,8 +80,8 @@ optionListItemsRouter.delete(
   async (req, res, next) => {
   try {
     const id = req.params.id as string;
-    const item = await optionListItemsService.deactivate(id);
-    res.json(item);
+    await optionListItemsService.delete(id);
+    res.status(204).end();
   } catch (err) {
     next(err);
   }
