@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clipboard, Copy, Eraser, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clipboard, Copy, Eraser, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { selectListItemsApi, selectListsApi } from "../../api/entities";
 import type { SelectList, SelectListItem } from "../../types/domain";
+import { InlineDataGrid, type InlineDataGridColumn } from "../../components/table/InlineDataGrid";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,13 @@ const EMPTY_ITEM: Partial<SelectListItem> = {
   comments: "",
 };
 
+const PANEL_WIDTH_KEY = "selectListItems.panelWidth";
+const PANEL_COLLAPSED_KEY = "selectListItems.panelCollapsed";
+const DEFAULT_PANEL_WIDTH = 320;
+const MIN_PANEL_WIDTH = 260;
+const MAX_PANEL_WIDTH = 520;
+const COLLAPSED_PANEL_WIDTH = 48;
+
 export function SelectListItemsSection({ showInactive, selectListId, onSelectList }: Props) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -52,6 +60,18 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     description?: string;
     onConfirm: () => void;
   } | null>(null);
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_PANEL_WIDTH;
+    const stored = window.localStorage.getItem(PANEL_WIDTH_KEY);
+    const parsed = stored ? Number(stored) : DEFAULT_PANEL_WIDTH;
+    if (!Number.isFinite(parsed)) return DEFAULT_PANEL_WIDTH;
+    return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, parsed));
+  });
+  const [panelCollapsed, setPanelCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(PANEL_COLLAPSED_KEY) === "true";
+  });
+  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const listsQuery = useQuery({
     queryKey: ["select-lists"],
@@ -106,25 +126,29 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     }
   }, [itemsQuery.data, currentListId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth));
+  }, [panelWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PANEL_COLLAPSED_KEY, String(panelCollapsed));
+  }, [panelCollapsed]);
+
   const createList = useMutation({
     mutationFn: (data: Partial<SelectList>) => selectListsApi.create(data),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["select-lists"] });
-      onSelectList((created as any).id);
-      setCurrentListId((created as any).id);
-      toast.success(`Created "${created.name}"`);
     },
-    onError: (err) => toast.error(`Create failed: ${String(err)}`),
   });
 
   const updateList = useMutation({
     mutationFn: (data: { id: string; payload: Partial<SelectList> }) =>
       selectListsApi.update(data.id, data.payload),
-    onSuccess: async (_, vars) => {
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["select-lists"] });
-      toast.success(`Saved "${vars.payload.name ?? ""}"`);
     },
-    onError: (err) => toast.error(`Update failed: ${String(err)}`),
   });
 
   const handleRowChange = (id: string, key: keyof SelectListItem, value: any) => {
@@ -158,14 +182,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       else next.add(id);
       return next;
     });
-  };
-
-  const toggleSelectAll = () => {
-    const visibleRows = rows.filter((r) => !pendingDeletes.has(r.id));
-    if (!visibleRows.length) return;
-    const allIds = visibleRows.map((r) => r.id);
-    const allSelected = allIds.every((id) => selectedIds.has(id));
-    setSelectedIds(allSelected ? new Set() : new Set(allIds));
   };
 
   const handleClearSelection = () => setSelectedIds(new Set());
@@ -281,6 +297,25 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const listCount = listsQuery.data?.length ?? 0;
   const selectionLabel = selectedIds.size ? `${selectedIds.size} selected` : "No selection";
 
+  const columns = useMemo<InlineDataGridColumn<SelectListItem>[]>(
+    () => [
+      { key: "value", header: "*Value", type: "string" },
+      { key: "displayValue", header: "*Display Value", type: "string" },
+      { key: "order", header: "*Order", type: "number", width: 70, align: "center" },
+      {
+        key: "isActive",
+        header: "Active",
+        type: "boolean",
+        width: 70,
+        align: "center",
+        filterLabel: (val) => (val ? "Active" : "Inactive"),
+      },
+      { key: "tooltip", header: "Tooltip", type: "string" },
+      { key: "comments", header: "Comments", type: "string" },
+    ],
+    [],
+  );
+
   const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
     const next = e.relatedTarget as HTMLElement | null;
     if (newRowRef.current && next && newRowRef.current.contains(next)) return;
@@ -347,8 +382,44 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     }
   };
 
+  const handleSplitterMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (panelCollapsed) return;
+    e.preventDefault();
+    dragStateRef.current = { startX: e.clientX, startWidth: panelWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!dragStateRef.current) return;
+      const delta = event.clientX - dragStateRef.current.startX;
+      const next = dragStateRef.current.startWidth - delta;
+      const clamped = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, next));
+      setPanelWidth(clamped);
+    };
+
+    const handleMouseUp = () => {
+      dragStateRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const panelSize = panelCollapsed ? COLLAPSED_PANEL_WIDTH : panelWidth;
+  const splitterSize = panelCollapsed ? 0 : 6;
+
   return (
-    <div className="inspector-shell">
+    <div
+      className="inspector-shell"
+      style={{
+        gridTemplateColumns: `minmax(0, 1fr) ${splitterSize}px ${panelSize}px`,
+        columnGap: 0,
+      }}
+    >
       <div className="card full-width">
         <div className="card-head spaced">
           <div className="table-title">
@@ -467,180 +538,67 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
         </div>
 
         <div className="table-pane">
-          <table className="data-table dense selectable">
-            <thead>
-              <tr>
-                <th style={{ width: 34 }} className="center">
-                  <button
-                    type="button"
-                    className={`row-select-handle ${rows.length && selectedIds.size === rows.length ? "active" : ""}`}
-                    onClick={toggleSelectAll}
-                    title="Select all"
-                  >
-                    •
-                  </button>
-                </th>
-                <th>*Value</th>
-                <th>*Display Value</th>
-                <th style={{ width: 70 }}>*Order</th>
-                <th style={{ width: 70 }}>Active</th>
-                <th>Tooltip</th>
-                <th>Comments</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const selected = selectedIds.has(row.id);
-                return (
-                  <tr
-                    key={row.id}
-                    className={selected ? "row-selected" : undefined}
-                    onMouseEnter={() => undefined}
-                  >
-                    <td className="center">
-                      <button
-                        type="button"
-                        className={`row-select-handle ${selected ? "active" : ""}`}
-                        onClick={() => toggleSelect(row.id)}
-                        title={selected ? "Deselect row" : "Select row"}
-                      >
-                        •
-                      </button>
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        value={row.value}
-                        onChange={(e) => handleRowChange(row.id, "value", e.target.value)}
-                        onFocus={handleFocusSelectAll}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        value={row.displayValue}
-                        onChange={(e) => handleRowChange(row.id, "displayValue", e.target.value)}
-                        onFocus={handleFocusSelectAll}
-                      />
-                    </td>
-                    <td className="center">
-                      <input
-                        className="table-input center"
-                        type="number"
-                        value={row.order}
-                        onChange={(e) => handleRowChange(row.id, "order", Number(e.target.value) || 0)}
-                        onFocus={handleFocusSelectAll}
-                      />
-                    </td>
-                    <td className="center">
-                      <input
-                        type="checkbox"
-                        className="table-checkbox"
-                        checked={row.isActive}
-                        onChange={(e) => {
-                          handleRowChange(row.id, "isActive", e.target.checked);
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        value={row.tooltip ?? ""}
-                        onChange={(e) => handleRowChange(row.id, "tooltip", e.target.value)}
-                        onFocus={handleFocusSelectAll}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        value={row.comments ?? ""}
-                        onChange={(e) => handleRowChange(row.id, "comments", e.target.value)}
-                        onFocus={handleFocusSelectAll}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-
-              <tr className="new-row" ref={newRowRef} onBlur={handleNewRowBlur}>
-                <td className="center"></td>
-                <td>
-                  <input
-                    ref={newRowFirstInputRef}
-                    className="table-input"
-                    value={newRow.value ?? ""}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, value: e.target.value }))}
-                    onFocus={handleFocusSelectAll}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="table-input"
-                    value={newRow.displayValue ?? ""}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, displayValue: e.target.value }))}
-                    onFocus={handleFocusSelectAll}
-                  />
-                </td>
-                <td className="center">
-                  <input
-                    className="table-input center"
-                    type="number"
-                    value={newRow.order ?? 0}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, order: Number(e.target.value) || 0 }))}
-                    onFocus={handleFocusSelectAll}
-                  />
-                </td>
-                <td className="center">
-                  <input
-                    type="checkbox"
-                    className="table-checkbox"
-                    checked={newRow.isActive ?? true}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, isActive: e.target.checked }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="table-input"
-                    value={newRow.tooltip ?? ""}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, tooltip: e.target.value }))}
-                    onFocus={handleFocusSelectAll}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="table-input"
-                    value={newRow.comments ?? ""}
-                    onChange={(e) => setNewRow((prev) => ({ ...prev, comments: e.target.value }))}
-                    onFocus={handleFocusSelectAll}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <InlineDataGrid
+            columns={columns}
+            rows={rows.filter((row) => !pendingDeletes.has(row.id))}
+            getRowId={(row) => row.id}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={(ids) => setSelectedIds(new Set(ids))}
+            onRowChange={handleRowChange}
+            newRow={newRow}
+            onNewRowChange={(key, value) => setNewRow((prev) => ({ ...prev, [key]: value }))}
+            onFocusSelectAll={handleFocusSelectAll}
+            newRowRef={newRowRef}
+            newRowFirstInputRef={newRowFirstInputRef}
+            onNewRowBlur={handleNewRowBlur}
+            enableSelection
+            enableFilters
+            enableSorting
+          />
         </div>
       </div>
 
-      <div className="side-pane">
-        <div className="side-pane-tabs">
-          <button className="tab active" type="button">
-            Groups
-          </button>
-          <button className="tab" type="button" disabled>
-            Properties
-          </button>
-        </div>
-        <div className="side-pane-content">
-          <div className="muted small">Manage group sets and groups for this list.</div>
-          <div className="pane-header-actions row" style={{ marginTop: 8, gap: 8 }}>
-            <button className="btn secondary small-btn" type="button">
-              Add
-            </button>
-            <input className="table-input" placeholder="New group set name" style={{ flex: 1 }} />
-          </div>
-          <div className="muted small" style={{ marginTop: 10 }}>
-            No group sets yet.
-          </div>
-        </div>
+      <div
+        className={`side-splitter ${panelCollapsed ? "collapsed" : ""}`}
+        onMouseDown={handleSplitterMouseDown}
+        style={{ width: splitterSize, pointerEvents: panelCollapsed ? "none" : "auto" }}
+        aria-hidden
+      />
+
+      <div className={`side-pane ${panelCollapsed ? "collapsed" : ""}`}>
+        <button
+          className="side-pane-toggle"
+          type="button"
+          onClick={() => setPanelCollapsed((prev) => !prev)}
+          title={panelCollapsed ? "Expand panel" : "Collapse panel"}
+        >
+          {panelCollapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+        </button>
+        {!panelCollapsed && (
+          <>
+            <div className="side-pane-tabs">
+              <button className="tab active" type="button">
+                Groups
+              </button>
+              <button className="tab" type="button" disabled>
+                Properties
+              </button>
+            </div>
+            <div className="side-pane-content">
+              <div className="muted small">Manage group sets and groups for this list.</div>
+              <div className="pane-header-actions row" style={{ marginTop: 8, gap: 8 }}>
+                <button className="btn secondary small-btn" type="button">
+                  Add
+                </button>
+                <input className="table-input" placeholder="New group set name" style={{ flex: 1 }} />
+              </div>
+              <div className="muted small" style={{ marginTop: 10 }}>
+                No group sets yet.
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {confirmDialog && (
@@ -675,3 +633,4 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     </div>
   );
 }
+

@@ -580,11 +580,11 @@ a {
 }
 
 .center {
-  text-align: left;
+  text-align: center;
 }
 
 .right {
-  text-align: left;
+  text-align: right;
 }
 
 .compact-cell {
@@ -612,6 +612,17 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 4px;
+}
+
+.th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.th-sort {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .th-actions {
@@ -711,10 +722,13 @@ a {
 }
 
 .data-table th.center,
-.data-table td.center,
+.data-table td.center {
+  text-align: center;
+}
+
 .data-table th.right,
 .data-table td.right {
-  text-align: left;
+  text-align: right;
 }
 
 .data-table tr.new-row .table-input {
@@ -891,6 +905,51 @@ a {
   height: calc(100vh - 140px);
   align-self: flex-start;
   overflow-y: auto;
+}
+
+.side-pane-toggle {
+  border: 1px solid var(--card-border);
+  background: #ffffff;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.side-pane.collapsed {
+  padding: 8px;
+  align-items: center;
+}
+
+.side-splitter {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+
+.side-splitter::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 2px;
+  right: 2px;
+  border-radius: 4px;
+  background: #e4eefb;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.side-splitter:hover::after {
+  opacity: 1;
+}
+
+.side-splitter.collapsed {
+  cursor: default;
 }
 .side-pane-tabs {
   display: flex;
