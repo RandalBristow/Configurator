@@ -19,7 +19,8 @@ selectListGroupsRouter.get(
   validate({ params: selectListIdParams }),
   async (req, res, next) => {
     try {
-      const sets = await selectListGroupsService.listGroupSets(req.params.listId);
+      const listId = req.params.listId as string;
+      const sets = await selectListGroupsService.listGroupSets(listId);
       res.json(sets);
     } catch (err) {
       next(err);
@@ -32,7 +33,8 @@ selectListGroupsRouter.post(
   validate({ params: selectListIdParams, body: groupSetCreate }),
   async (req, res, next) => {
     try {
-      const created = await selectListGroupsService.createGroupSet(req.params.listId, req.body);
+      const listId = req.params.listId as string;
+      const created = await selectListGroupsService.createGroupSet(listId, req.body);
       res.status(201).json(created);
     } catch (err) {
       next(err);
@@ -45,7 +47,8 @@ selectListGroupsRouter.put(
   validate({ params: groupSetIdParams, body: groupSetUpdate }),
   async (req, res, next) => {
     try {
-      const updated = await selectListGroupsService.updateGroupSet(req.params.setId, req.body);
+      const setId = req.params.setId as string;
+      const updated = await selectListGroupsService.updateGroupSet(setId, req.body);
       res.json(updated);
     } catch (err) {
       next(err);
@@ -58,7 +61,8 @@ selectListGroupsRouter.delete(
   validate({ params: groupSetIdParams }),
   async (req, res, next) => {
     try {
-      await selectListGroupsService.deleteGroupSet(req.params.setId);
+      const setId = req.params.setId as string;
+      await selectListGroupsService.deleteGroupSet(setId);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -71,7 +75,8 @@ selectListGroupsRouter.post(
   validate({ params: groupSetIdParams, body: groupCreate }),
   async (req, res, next) => {
     try {
-      const created = await selectListGroupsService.createGroup(req.params.setId, req.body);
+      const setId = req.params.setId as string;
+      const created = await selectListGroupsService.createGroup(setId, req.body);
       res.status(201).json(created);
     } catch (err) {
       next(err);
@@ -84,7 +89,8 @@ selectListGroupsRouter.put(
   validate({ params: groupIdParams, body: groupUpdate }),
   async (req, res, next) => {
     try {
-      const updated = await selectListGroupsService.updateGroup(req.params.groupId, req.body);
+      const groupId = req.params.groupId as string;
+      const updated = await selectListGroupsService.updateGroup(groupId, req.body);
       res.json(updated);
     } catch (err) {
       next(err);
@@ -97,7 +103,8 @@ selectListGroupsRouter.delete(
   validate({ params: groupIdParams }),
   async (req, res, next) => {
     try {
-      await selectListGroupsService.deleteGroup(req.params.groupId);
+      const groupId = req.params.groupId as string;
+      await selectListGroupsService.deleteGroup(groupId);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -110,7 +117,8 @@ selectListGroupsRouter.post(
   validate({ params: groupIdParams, body: membershipBatch }),
   async (req, res, next) => {
     try {
-      await selectListGroupsService.setMemberships(req.params.groupId, req.body.itemIds ?? []);
+      const groupId = req.params.groupId as string;
+      await selectListGroupsService.setMemberships(groupId, req.body.itemIds ?? []);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -123,7 +131,8 @@ selectListGroupsRouter.get(
   validate({ params: groupIdParams }),
   async (req, res, next) => {
     try {
-      const memberships = await selectListGroupsService.listMemberships(req.params.groupId);
+      const groupId = req.params.groupId as string;
+      const memberships = await selectListGroupsService.listMemberships(groupId);
       res.json(memberships);
     } catch (err) {
       next(err);

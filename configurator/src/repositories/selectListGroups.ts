@@ -87,8 +87,8 @@ export async function setGroupMemberships(
   itemIds: string[],
   client?: PrismaClientOrTx,
 ) {
-  const prisma = withClient(client);
-  return prisma.$transaction(async (tx) => {
+  const runner = defaultPrisma;
+  return runner.$transaction(async (tx) => {
     await tx.selectListItemGroup.deleteMany({ where: { groupId } });
     if (itemIds.length === 0) return;
     await tx.selectListItemGroup.createMany({

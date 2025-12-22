@@ -23,7 +23,7 @@ export type UpdateOptionListItemInput = {
 type PrismaClientOrTx = Prisma.TransactionClient | PrismaClient;
 const withClient = (client?: PrismaClientOrTx) => client ?? defaultPrisma;
 
-export async function listOptionListItems(opts?: {
+export async function listSelectListItems(opts?: {
   selectListId?: string;
   includeInactive?: boolean;
   client?: PrismaClientOrTx;
@@ -38,14 +38,14 @@ export async function listOptionListItems(opts?: {
   });
 }
 
-export async function getOptionListItemById(
+export async function getSelectListItemById(
   id: string,
   client?: PrismaClientOrTx,
 ) {
   return withClient(client).selectListItem.findUnique({ where: { id } });
 }
 
-export async function createOptionListItem(
+export async function createSelectListItem(
   input: CreateOptionListItemInput,
   client?: PrismaClientOrTx,
 ): Promise<SelectListItem> {
@@ -62,7 +62,7 @@ export async function createOptionListItem(
   });
 }
 
-export async function updateOptionListItem(
+export async function updateSelectListItem(
   id: string,
   input: UpdateOptionListItemInput,
   client?: PrismaClientOrTx,
@@ -83,7 +83,7 @@ export async function deactivateOptionListItem(
   });
 }
 
-export async function deleteOptionListItem(
+export async function deleteSelectListItem(
   id: string,
   client?: PrismaClientOrTx,
 ) {
