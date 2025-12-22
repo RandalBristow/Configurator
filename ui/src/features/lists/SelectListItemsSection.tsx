@@ -319,8 +319,9 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       }
 
       // Delete rows
-      for (const id of Array.from(pendingDeletes)) {
-        await selectListItemsApi.remove(id);
+      const deletes = Array.from(pendingDeletes);
+      if (deletes.length) {
+        await Promise.all(deletes.map((id) => selectListItemsApi.remove(id)));
       }
 
       // Save new row if filled
@@ -336,7 +337,10 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       setDrafts({});
       setPendingDeletes(new Set());
       setSelectedIds(new Set());
-      qc.invalidateQueries({ queryKey: ["select-list-items"] });
+      // Refresh items so UI matches backend state
+      const refreshed = await selectListItemsApi.list(listId, showInactive);
+      setRows(refreshed);
+      setNewRow(EMPTY_ITEM);
       toast.success("Changes saved");
     } catch (err) {
       toast.error(String(err));
