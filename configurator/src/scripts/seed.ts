@@ -5,7 +5,7 @@ async function main() {
   const categoryId = "00000000-0000-0000-0000-000000000111";
   const subcategoryId = "00000000-0000-0000-0000-000000000222";
   const optionId = "00000000-0000-0000-0000-000000000333";
-  const optionListId = "00000000-0000-0000-0000-000000000444";
+  const selectListId = "00000000-0000-0000-0000-000000000444";
   const optionListItem208Id = "00000000-0000-0000-0000-000000000445";
   const optionListItem480Id = "00000000-0000-0000-0000-000000000446";
   const attributeVoltageId = "00000000-0000-0000-0000-000000000555";
@@ -48,13 +48,13 @@ async function main() {
   });
 
   await prisma.selectList.upsert({
-    where: { id: optionListId },
+    where: { id: selectListId },
     update: {
       name: "VoltageLevels",
       description: "Available voltage options",
     },
     create: {
-      id: optionListId,
+      id: selectListId,
       name: "VoltageLevels",
       description: "Available voltage options",
     },
@@ -63,7 +63,7 @@ async function main() {
   await prisma.selectListItem.upsert({
     where: { id: optionListItem208Id },
     update: {
-      selectListId: optionListId,
+      selectListId: selectListId,
       value: "208",
       displayValue: "208V",
       order: 1,
@@ -71,7 +71,7 @@ async function main() {
     },
     create: {
       id: optionListItem208Id,
-      selectListId: optionListId,
+      selectListId: selectListId,
       value: "208",
       displayValue: "208V",
       order: 1,
@@ -82,7 +82,7 @@ async function main() {
   await prisma.selectListItem.upsert({
     where: { id: optionListItem480Id },
     update: {
-      selectListId: optionListId,
+      selectListId: selectListId,
       value: "480",
       displayValue: "480V",
       order: 2,
@@ -90,7 +90,7 @@ async function main() {
     },
     create: {
       id: optionListItem480Id,
-      selectListId: optionListId,
+      selectListId: selectListId,
       value: "480",
       displayValue: "480V",
       order: 2,
@@ -126,7 +126,7 @@ async function main() {
       key: "voltage",
       label: "Voltage",
       dataType: "enum",
-      optionListId,
+      selectListId,
       sortOrder: 1,
       isActive: true,
     },
@@ -136,7 +136,7 @@ async function main() {
       key: "voltage",
       label: "Voltage",
       dataType: "enum",
-      optionListId,
+      selectListId,
       sortOrder: 1,
       isActive: true,
     },
