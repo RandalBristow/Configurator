@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { categoriesApi } from "../../api/entities";
 import type { Category } from "../../types/domain";
-import { DataTable, type DataTableColumn } from "../../components/table/DataTable";
+import { DataTable, type DataTableColumn } from "../../components/table/_DataTable";
 import { toast } from "sonner";
 
 type Props = {

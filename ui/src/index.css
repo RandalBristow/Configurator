@@ -15,6 +15,8 @@
   --accent-red: #d31145;
   --danger: #b91c1c;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --indicator-new: #15803d;
+  --indicator-edited: #a16207;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   line-height: 1.5;
@@ -527,6 +529,46 @@ a {
   color: #0c6ab8;
 }
 
+.row-indicator-cell {
+  position: relative;
+  width: 34px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.row-indicator-cell .row-select-handle {
+  margin-left: 0px;
+}
+
+.row-indicator {
+  position: absolute;
+  top: 0px;
+  bottom: 0px;
+  left: 0;
+  width: 4px;
+  display: block;
+  background: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.row-indicator-new {
+  background: var(--indicator-new);
+}
+
+.row-indicator-edited {
+  background: var(--indicator-edited);
+}
+
+.row-status-new td {
+  background-color: rgba(21, 128, 61, 0.08);
+}
+
+.row-status-edited td {
+  background-color: rgba(161, 98, 7, 0.12);
+}
+
 .table-input {
   width: 100%;
   padding: 8px 10px;
@@ -827,15 +869,88 @@ a {
   align-items: flex-start;
   width: 100%;
 }
+
+.select-list-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.select-list-header-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+
+}
+.select-list-header-tab {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1.2rem;
+  padding: 4px 10px;
+  border-radius: 8px 8px 0 0;
+  margin: -12px -12px 0 -12px;    /* removes padding gap on all sides except bottom */
+  background: var(--nav-bg);
+}
+
+.select-list-header-row {
+  display: flex;
+  align-items: center;
+  justify-content:flex-start;
+  margin-top: 8px;
+}
+
+.select-list-header-left {
+  display: flex;
+  align-items: left;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.select-list-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-form-header-tab-divider {
+  width: 1px;
+  height: 0px;
+  background: #cbd5e1;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.select-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  height: calc(100vh - 140px);
+}
 .card.full-width {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.card.full-height {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .table-pane {
   overflow: auto;
   width: 100%;
   position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
 .selection-bar {
@@ -867,6 +982,8 @@ a {
   width: 1px;
   height: 28px;
   background: #cbd5e1;
+  margin-left: 5px;
+  margin-right: 5px;
 }
 .selection-bar__spacer {
   flex: 1;
@@ -893,35 +1010,44 @@ a {
   border-color: #8bb4f1;
   transform: translateY(-1px);
 }
+
 .side-pane {
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  background: #f8faff;
-  padding: 10px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  background: #f9f9f9;
+  padding: 0 !important; /* critical: no padding on the container */
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 10px;
   gap: 8px;
   min-height: 320px;
-  height: calc(100vh - 140px);
-  align-self: flex-start;
+  align-self: stretch;
   overflow-y: auto;
 }
-
+.side-pane-header {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: left;
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--border);
+  margin: 0;     /* no margin */
+  padding: 0;    /* no padding */
+}
 .side-pane-toggle {
-  border: 1px solid var(--card-border);
-  background: #ffffff;
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
+  background-color: var(--nav-bg) !important;
+  color: #f9f9f9;
+  border: none !important;
+  padding: 0px;
+  margin-left: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
-
 .side-pane.collapsed {
-  padding: 8px;
-  align-items: center;
+  overflow: hidden;
 }
 
 .side-splitter {
@@ -967,12 +1093,12 @@ a {
   border-color: #bcd3f3;
 }
 .side-pane-content {
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  background: #fff;
-  padding: 10px;
   flex: 1;
+  overflow-y: auto;
+  padding: 0px !important;
+  margin: 8px;
 }
+
 .accordion {
   display: flex;
   flex-direction: column;

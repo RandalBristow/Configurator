@@ -1,20 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Clipboard, Copy, Eraser, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { useResizableSidePanel } from "../../hooks/useResizableSidePanel";
 import { selectListItemsApi, selectListsApi } from "../../api/entities";
 import type { SelectList, SelectListItem } from "../../types/domain";
-import { InlineDataGrid, type InlineDataGridColumn } from "../../components/table/InlineDataGrid";
+import { ConfirmDialog } from "../../components/dialogs/ConfirmDialog";
+import { SelectListHeaderBar } from "../../components/select-lists/SelectListHeaderBar";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../components/ui/alert-dialog";
+  DataGrid,
+  type DataGridColumn,
+} from "../../components/table/DataTable";
+import { DataTableToolbar } from "../../components/table/DataTableToolbar";
+import { SelectListMetaForm } from "../../components/select-lists/SelectListMetaForm";
 
 type Props = {
   showInactive: boolean;
@@ -33,17 +31,16 @@ const EMPTY_ITEM: Partial<SelectListItem> = {
   comments: "",
 };
 
-const PANEL_WIDTH_KEY = "selectListItems.panelWidth";
-const PANEL_COLLAPSED_KEY = "selectListItems.panelCollapsed";
-const DEFAULT_PANEL_WIDTH = 320;
-const MIN_PANEL_WIDTH = 260;
-const MAX_PANEL_WIDTH = 520;
-const COLLAPSED_PANEL_WIDTH = 48;
-
-export function SelectListItemsSection({ showInactive, selectListId, onSelectList }: Props) {
+export function SelectListItemsSection({
+  showInactive,
+  selectListId,
+  onSelectList,
+}: Props) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [currentListId, setCurrentListId] = useState<string | undefined>(selectListId);
+  const [currentListId, setCurrentListId] = useState<string | undefined>(
+    selectListId
+  );
   const [listName, setListName] = useState("");
   const [listDescription, setListDescription] = useState("");
 
@@ -52,6 +49,8 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
   const [newRow, setNewRow] = useState<Partial<SelectListItem>>(EMPTY_ITEM);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
+  const [pendingAdds, setPendingAdds] = useState<SelectListItem[]>([]);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
   const newRowRef = useRef<HTMLTableRowElement | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -60,18 +59,14 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     description?: string;
     onConfirm: () => void;
   } | null>(null);
-  const [panelWidth, setPanelWidth] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_PANEL_WIDTH;
-    const stored = window.localStorage.getItem(PANEL_WIDTH_KEY);
-    const parsed = stored ? Number(stored) : DEFAULT_PANEL_WIDTH;
-    if (!Number.isFinite(parsed)) return DEFAULT_PANEL_WIDTH;
-    return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, parsed));
-  });
-  const [panelCollapsed, setPanelCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(PANEL_COLLAPSED_KEY) === "true";
-  });
-  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const {
+    panelCollapsed,
+    setPanelCollapsed,
+    panelSize,
+    splitterSize,
+    onSplitterMouseDown,
+  } = useResizableSidePanel({ storageKeyBase: "selectListItems" });
 
   const listsQuery = useQuery({
     queryKey: ["select-lists"],
@@ -86,15 +81,20 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
 
   useEffect(() => {
     setCurrentListId(selectListId);
+    setIsCreatingNew(false);
   }, [selectListId]);
 
   // Auto-select first list when available
   useEffect(() => {
-    if (!currentListId && (listsQuery.data?.length ?? 0) > 0) {
+    if (
+      !currentListId &&
+      !isCreatingNew &&
+      (listsQuery.data?.length ?? 0) > 0
+    ) {
       setCurrentListId(listsQuery.data![0].id);
       onSelectList(listsQuery.data![0].id);
     }
-  }, [listsQuery.data, currentListId, onSelectList]);
+  }, [listsQuery.data, currentListId, isCreatingNew, onSelectList]);
 
   const filteredLists = useMemo(() => {
     const term = search.toLowerCase();
@@ -102,13 +102,13 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     return (listsQuery.data ?? []).filter(
       (l) =>
         l.name.toLowerCase().includes(term) ||
-        (l.description ?? "").toLowerCase().includes(term),
+        (l.description ?? "").toLowerCase().includes(term)
     );
   }, [listsQuery.data, search]);
 
   const currentList: SelectList | undefined = useMemo(
     () => (listsQuery.data ?? []).find((l) => l.id === currentListId),
-    [listsQuery.data, currentListId],
+    [listsQuery.data, currentListId]
   );
 
   useEffect(() => {
@@ -124,17 +124,13 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       setPendingDeletes(new Set());
       setNewRow(EMPTY_ITEM);
     }
+    setPendingAdds([]);
   }, [itemsQuery.data, currentListId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth));
-  }, [panelWidth]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(PANEL_COLLAPSED_KEY, String(panelCollapsed));
-  }, [panelCollapsed]);
+    setPendingAdds([]);
+    setNewRow(EMPTY_ITEM);
+  }, [currentListId]);
 
   const createList = useMutation({
     mutationFn: (data: Partial<SelectList>) => selectListsApi.create(data),
@@ -151,9 +147,18 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     },
   });
 
-  const handleRowChange = (id: string, key: keyof SelectListItem, value: any) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
-    setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [key]: value } }));
+  const handleRowChange = (
+    id: string,
+    key: keyof SelectListItem,
+    value: any
+  ) => {
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [key]: value } : r))
+    );
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? {}), [key]: value },
+    }));
   };
 
   const handleDeleteSelected = () => {
@@ -188,7 +193,14 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
 
   const copySelectedRows = async () => {
     if (!selectedIds.size) return;
-    const headers = ["Value", "Display Value", "Order", "Active", "Tooltip", "Comments"];
+    const headers = [
+      "Value",
+      "Display Value",
+      "Order",
+      "Active",
+      "Tooltip",
+      "Comments",
+    ];
     const lines = rows
       .filter((r) => selectedIds.has(r.id) && !pendingDeletes.has(r.id))
       .map((r) =>
@@ -199,7 +211,7 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
           r.isActive ? "Active" : "Inactive",
           r.tooltip ?? "",
           r.comments ?? "",
-        ].join("\t"),
+        ].join("\t")
       );
     const text = [headers.join("\t"), ...lines].join("\n");
     try {
@@ -217,8 +229,18 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       .filter(Boolean);
     if (!lines.length) return [];
     const delimiter = lines[0].includes("\t") ? "\t" : ",";
-    const headers = lines[0].split(delimiter).map((h) => h.trim().toLowerCase());
-    const expected = ["value", "display value", "displayvalue", "order", "active", "tooltip", "comments"];
+    const headers = lines[0]
+      .split(delimiter)
+      .map((h) => h.trim().toLowerCase());
+    const expected = [
+      "value",
+      "display value",
+      "displayvalue",
+      "order",
+      "active",
+      "tooltip",
+      "comments",
+    ];
     const headerMatches = headers.some((h) => expected.includes(h));
     const dataLines = headerMatches ? lines.slice(1) : lines;
     const normalizedHeaders = headerMatches
@@ -242,10 +264,16 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     for (const rec of records) {
       const payload: Partial<SelectListItem> = {
         selectListId: currentListId,
-        value: (rec["value"] ?? rec["Value"] ?? rec[""] ?? "").toString().trim(),
-        displayValue: (rec["display value"] ?? rec["Display Value"] ?? "").toString().trim(),
+        value: (rec["value"] ?? rec["Value"] ?? rec[""] ?? "")
+          .toString()
+          .trim(),
+        displayValue: (rec["display value"] ?? rec["Display Value"] ?? "")
+          .toString()
+          .trim(),
         order: Number(rec["order"] ?? rec["Order"] ?? 0) || 0,
-        isActive: String(rec["active"] ?? rec["Active"] ?? "true").toLowerCase() !== "false",
+        isActive:
+          String(rec["active"] ?? rec["Active"] ?? "true").toLowerCase() !==
+          "false",
         tooltip: rec["tooltip"] ?? rec["Tooltip"] ?? undefined,
         comments: rec["comments"] ?? rec["Comments"] ?? undefined,
       };
@@ -294,14 +322,17 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     e.target.select();
   };
 
-  const listCount = listsQuery.data?.length ?? 0;
-  const selectionLabel = selectedIds.size ? `${selectedIds.size} selected` : "No selection";
-
-  const columns = useMemo<InlineDataGridColumn<SelectListItem>[]>(
+  const columns = useMemo<DataGridColumn<SelectListItem>[]>(
     () => [
       { key: "value", header: "*Value", type: "string" },
       { key: "displayValue", header: "*Display Value", type: "string" },
-      { key: "order", header: "*Order", type: "number", width: 70, align: "center" },
+      {
+        key: "order",
+        header: "*Order",
+        type: "number",
+        width: 70,
+        align: "center",
+      },
       {
         key: "isActive",
         header: "Active",
@@ -313,13 +344,119 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       { key: "tooltip", header: "Tooltip", type: "string" },
       { key: "comments", header: "Comments", type: "string" },
     ],
-    [],
+    []
   );
+
+  const listMetaDirty =
+    (currentList?.name ?? "") !== listName ||
+    (currentList?.description ?? "") !== listDescription;
+  const hasUnsaved =
+    Object.keys(drafts).length > 0 ||
+    pendingDeletes.size > 0 ||
+    Boolean(newRow.value?.trim() || newRow.displayValue?.trim()) ||
+    listMetaDirty ||
+    pendingAdds.length > 0;
+
+  const finalizeNewRow = (opts?: { showError?: boolean }) => {
+    const trimmedValue = newRow.value?.trim();
+    const trimmedDisplayValue = newRow.displayValue?.trim();
+    if (!trimmedValue || !trimmedDisplayValue || !currentListId) {
+      if (!currentListId && opts?.showError) {
+        toast.error("Select a list first.");
+      }
+      return null;
+    }
+    const pendingRow: SelectListItem = {
+      id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      selectListId: currentListId,
+      value: trimmedValue,
+      displayValue: trimmedDisplayValue,
+      order: Number(newRow.order) || 0,
+      isActive: newRow.isActive ?? true,
+      tooltip: newRow.tooltip,
+      comments: newRow.comments,
+    };
+    setPendingAdds((prev) => [...prev, pendingRow]);
+    setNewRow(EMPTY_ITEM);
+    requestAnimationFrame(() => {
+      newRowFirstInputRef.current?.focus();
+    });
+    return pendingRow;
+  };
 
   const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
     const next = e.relatedTarget as HTMLElement | null;
     if (newRowRef.current && next && newRowRef.current.contains(next)) return;
-    // no-op for now; save handled by explicit Save action
+    finalizeNewRow({ showError: true });
+  };
+
+  const resetToNewList = () => {
+    setIsCreatingNew(true);
+    setCurrentListId(undefined);
+    onSelectList(undefined);
+    setListName("");
+    setListDescription("");
+    setRows([]);
+    setDrafts({});
+    setSelectedIds(new Set());
+    setPendingDeletes(new Set());
+    setNewRow(EMPTY_ITEM);
+    setPendingAdds([]);
+  };
+
+  const handleStartNewList = () => {
+    if (hasUnsaved) {
+      setConfirmDialog({
+        open: true,
+        title: "Start a new list?",
+        description: "Unsaved changes will be lost.",
+        onConfirm: resetToNewList,
+      });
+      return;
+    }
+    resetToNewList();
+  };
+
+  const handleDeleteList = () => {
+    if (!currentListId) return;
+    const name = listName.trim() || currentList?.name || "this list";
+    setConfirmDialog({
+      open: true,
+      title: `Delete "${name}" ?`,
+      description: "This will remove the select list and its items.",
+      onConfirm: async () => {
+        try {
+          await selectListsApi.remove(currentListId);
+          const result = await listsQuery.refetch();
+          const nextId = result.data?.[0]?.id;
+          if (nextId) {
+            setCurrentListId(nextId);
+            onSelectList(nextId);
+            setIsCreatingNew(false);
+          } else {
+            resetToNewList();
+          }
+          toast.success("Select list deleted");
+        } catch (err) {
+          toast.error(`Delete failed: ${String(err)}`);
+        }
+      },
+    });
+  };
+
+  const handleResetItems = () => {
+    if (!currentListId) return;
+    void itemsQuery.refetch();
+  };
+
+  const visibleRows = useMemo(() => {
+    return [...rows, ...pendingAdds];
+  }, [rows, pendingAdds]);
+
+  const getRowStatus = (row: SelectListItem): "new" | "edited" | undefined => {
+    if (pendingAdds.some((pending) => pending.id === row.id)) return "new";
+    if (drafts[row.id]) return "edited";
+    return undefined;
   };
 
   const handleSaveAll = async () => {
@@ -332,9 +469,15 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       let listId = currentListId;
       // Save list metadata (create first if needed to ensure we have an id)
       if (currentList) {
-        await updateList.mutateAsync({ id: currentList.id, payload: { name: listName, description: listDescription } });
+        await updateList.mutateAsync({
+          id: currentList.id,
+          payload: { name: listName, description: listDescription },
+        });
       } else {
-        const created = await createList.mutateAsync({ name: listName, description: listDescription });
+        const created = await createList.mutateAsync({
+          name: listName,
+          description: listDescription,
+        });
         const newId = (created as any)?.id;
         if (newId) {
           listId = newId;
@@ -345,6 +488,22 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
         }
       }
       if (!listId) throw new Error("Select list id not available");
+      setIsCreatingNew(false);
+      const finalized = finalizeNewRow({ showError: false });
+      const addsToSave = [...pendingAdds];
+      if (finalized) addsToSave.push(finalized);
+      if (addsToSave.length) {
+        await Promise.all(
+          addsToSave.map((row) =>
+            selectListItemsApi.create({
+              ...row,
+              selectListId: listId,
+              order: Number(row.order) || 0,
+            }),
+          ),
+        );
+        setPendingAdds([]);
+      }
 
       // Save edited rows
       const draftEntries = Object.entries(drafts);
@@ -357,16 +516,6 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
       const deletes = Array.from(pendingDeletes);
       if (deletes.length) {
         await Promise.all(deletes.map((id) => selectListItemsApi.remove(id)));
-      }
-
-      // Save new row if filled
-      if (newRow.value?.trim() && newRow.displayValue?.trim()) {
-        await selectListItemsApi.create({
-          ...newRow,
-          selectListId: listId,
-          order: Number(newRow.order) || 0,
-        });
-        setNewRow(EMPTY_ITEM);
       }
 
       setDrafts({});
@@ -382,255 +531,205 @@ export function SelectListItemsSection({ showInactive, selectListId, onSelectLis
     }
   };
 
-  const handleSplitterMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (panelCollapsed) return;
-    e.preventDefault();
-    dragStateRef.current = { startX: e.clientX, startWidth: panelWidth };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!dragStateRef.current) return;
-      const delta = event.clientX - dragStateRef.current.startX;
-      const next = dragStateRef.current.startWidth - delta;
-      const clamped = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, next));
-      setPanelWidth(clamped);
-    };
-
-    const handleMouseUp = () => {
-      dragStateRef.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  };
-
-  const panelSize = panelCollapsed ? COLLAPSED_PANEL_WIDTH : panelWidth;
-  const splitterSize = panelCollapsed ? 0 : 6;
-
   return (
-    <div
-      className="inspector-shell"
-      style={{
-        gridTemplateColumns: `minmax(0, 1fr) ${splitterSize}px ${panelSize}px`,
-        columnGap: 0,
-      }}
-    >
-      <div className="card full-width">
-        <div className="card-head spaced">
-          <div className="table-title">
-            <span className="table-badge">{listCount}</span>
-            <h2>Select List Items</h2>
-          </div>
-          <div className="table-actions">
-            <button className="btn secondary" type="button" onClick={() => qc.invalidateQueries()}>
-              Reset
-            </button>
-            <button className="btn primary" type="button" onClick={handleSaveAll} disabled={!listName.trim()}>
-              Save
-            </button>
-          </div>
-        </div>
+    <div className="select-list-screen">
+      <div
+        className="inspector-shell"
+        style={{
+          gridTemplateColumns: `minmax(0, 1fr) ${splitterSize}px ${panelSize}px`,
+          columnGap: 0,
+        }}
+      >
+        <div className="select-list-main" style={{ paddingRight: 0 }}>
+          <SelectListHeaderBar
+            currentListId={currentListId}
+            lists={filteredLists}
+            search={search}
+            onSearchChange={setSearch}
+            onChangeList={(id) => {
+              if (!id) {
+                resetToNewList();
+                return;
+              }
+              setIsCreatingNew(false);
+              setCurrentListId(id);
+              onSelectList(id);
+            }}
+            onNew={handleStartNewList}
+            onSave={handleSaveAll}
+            onDelete={handleDeleteList}
+            saveDisabled={!listName.trim()}
+            deleteDisabled={!currentListId}
+          />
 
-        <div className="select-list-toolbar">
-          <div className="select-list-picker">
-            <label className="muted small">Select List</label>
-            <div
-              className="picker-row"
-              style={{ width: "520px", maxWidth: "100%", display: "flex", gap: 8, marginBottom: 8 }}
-            >
-              <select
-                className="table-input"
-                style={{ width: 250 }}
-                value={currentListId ?? ""}
-                onChange={(e) => {
-                  const id = e.target.value || undefined;
-                  setCurrentListId(id);
-                  onSelectList(id);
-                }}
-              >
-                {filteredLists.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="table-input"
-                placeholder="Filter lists"
-                style={{ width: 250 }}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+          <div
+            className="card full-width full-height"
+            style={{ paddingRight: 12 }}
+          >
+
+            <SelectListMetaForm
+              listName={listName}
+              listDescription={listDescription}
+              onChangeName={setListName}
+              onChangeDescription={setListDescription}
+              onFocusSelectAll={handleFocusSelectAll}
+            />
+
+            <DataTableToolbar
+              selectedCount={selectedIds.size}
+              canReset={Boolean(currentListId)}
+              onImportClipboard={handleImportClipboard}
+              onImportFile={handleImportFile}
+              onClearSelection={handleClearSelection}
+              onCopySelected={copySelectedRows}
+              onDeleteSelected={handleDeleteSelected}
+              onReset={handleResetItems}
+            />
+
+            <div className="table-pane">
+              <DataGrid
+                columns={columns}
+                rows={visibleRows.filter((row) => !pendingDeletes.has(row.id))}
+                getRowId={(row) => row.id}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onToggleSelectAll={(ids) => setSelectedIds(new Set(ids))}
+                onRowChange={handleRowChange}
+                newRow={newRow}
+                onNewRowChange={(key, value) =>
+                  setNewRow((prev) => ({ ...prev, [key]: value }))
+                }
+                onFocusSelectAll={handleFocusSelectAll}
+                newRowRef={newRowRef}
+                newRowFirstInputRef={newRowFirstInputRef}
+                onNewRowBlur={handleNewRowBlur}
+                enableSelection
+                enableFilters
+                enableSorting
+                getRowStatus={getRowStatus}
               />
             </div>
-
-            <div className="picker-row" style={{ gap: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                <label className="muted small">Select List Name</label>
-                <input
-                  className="table-input"
-                  placeholder="Name"
-                  style={{ marginBottom: 6 }}
-                  value={listName}
-                  onChange={(e) => setListName(e.target.value)}
-                  onFocus={handleFocusSelectAll}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                <label className="muted small">Description</label>
-                <textarea
-                  className="table-input"
-                  placeholder="Description"
-                  rows={2}
-                  style={{ resize: "vertical" }}
-                  value={listDescription}
-                  onChange={(e) => setListDescription(e.target.value)}
-                />
-              </div>
-            </div>
           </div>
         </div>
 
-        <div className="selection-bar">
-          <div className="selection-bar__actions">
-            <button className="icon-btn" type="button" title="Import from clipboard" onClick={handleImportClipboard}>
-              <Clipboard size={16} />
-            </button>
-            <label className="icon-btn" title="Import from file">
-              <Upload size={16} />
-              <input type="file" accept=".csv,text/plain" onChange={handleImportFile} style={{ display: "none" }} />
-            </label>
-            <div className="selection-bar__divider" />
-            <button
-              className="icon-btn"
-              type="button"
-              title="Clear selection"
-              onClick={handleClearSelection}
-              disabled={!selectedIds.size}
-            >
-              <Eraser size={16} />
-            </button>
-            <button
-              className="icon-btn"
-              type="button"
-              title="Copy selected rows"
-              onClick={copySelectedRows}
-              disabled={!selectedIds.size}
-            >
-              <Copy size={16} />
-            </button>
-            <button
-              className="icon-btn"
-              type="button"
-              title="Delete selected rows"
-              onClick={handleDeleteSelected}
-              disabled={!selectedIds.size}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-          <div className="selection-bar__spacer" />
-        <div className="selection-bar__label">{selectionLabel}</div>
-        </div>
-
-        <div className="table-pane">
-          <InlineDataGrid
-            columns={columns}
-            rows={rows.filter((row) => !pendingDeletes.has(row.id))}
-            getRowId={(row) => row.id}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={(ids) => setSelectedIds(new Set(ids))}
-            onRowChange={handleRowChange}
-            newRow={newRow}
-            onNewRowChange={(key, value) => setNewRow((prev) => ({ ...prev, [key]: value }))}
-            onFocusSelectAll={handleFocusSelectAll}
-            newRowRef={newRowRef}
-            newRowFirstInputRef={newRowFirstInputRef}
-            onNewRowBlur={handleNewRowBlur}
-            enableSelection
-            enableFilters
-            enableSorting
-          />
-        </div>
-      </div>
-
-      <div
-        className={`side-splitter ${panelCollapsed ? "collapsed" : ""}`}
-        onMouseDown={handleSplitterMouseDown}
-        style={{ width: splitterSize, pointerEvents: panelCollapsed ? "none" : "auto" }}
-        aria-hidden
-      />
-
-      <div className={`side-pane ${panelCollapsed ? "collapsed" : ""}`}>
-        <button
-          className="side-pane-toggle"
-          type="button"
-          onClick={() => setPanelCollapsed((prev) => !prev)}
-          title={panelCollapsed ? "Expand panel" : "Collapse panel"}
+        <div
+          className={`side-splitter ${panelCollapsed ? "collapsed" : ""}`}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize side panel"
+          onMouseDown={onSplitterMouseDown}
+          style={{
+            width: splitterSize,
+            pointerEvents: panelCollapsed ? "none" : "auto",
+            height: "100%",
+            alignSelf: "stretch",
+            margin: 0,
+            zIndex: 60,
+            cursor: panelCollapsed ? "default" : "col-resize",
+            background:
+              "linear-gradient(90deg, rgba(0,0,0,0.02), rgba(0,0,0,0.04))",
+            boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.03)",
+            borderRadius: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          {panelCollapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-        </button>
-        {!panelCollapsed && (
-          <>
-            <div className="side-pane-tabs">
-              <button className="tab active" type="button">
-                Groups
-              </button>
-              <button className="tab" type="button" disabled>
-                Properties
-              </button>
+          {!panelCollapsed && (
+            <div
+              className="splitter-handle"
+              onMouseDown={onSplitterMouseDown}
+              style={{
+                width: 28,
+                height: 36,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "col-resize",
+                userSelect: "none",
+                touchAction: "none",
+              }}
+            >
+              {/* simple visual bar */}
+              <div
+                style={{
+                  width: 3,
+                  height: 20,
+                  background: "rgba(0,0,0,0.22)",
+                  borderRadius: 2,
+                }}
+              />
             </div>
+          )}
+        </div>
+
+        <div className={`side-pane ${panelCollapsed ? "collapsed" : ""}`}>
+          <div className="side-pane-header">
+            <button
+              className="side-pane-toggle"
+              type="button"
+              onClick={() => setPanelCollapsed((prev) => !prev)}
+              title={panelCollapsed ? "Expand panel" : "Collapse panel"}
+            >
+              {panelCollapsed ? <ChevronLeft size={28} /> : <ChevronRight size={28} />}
+            </button>
+          </div>
             <div className="side-pane-content">
-              <div className="muted small">Manage group sets and groups for this list.</div>
-              <div className="pane-header-actions row" style={{ marginTop: 8, gap: 8 }}>
-                <button className="btn secondary small-btn" type="button">
-                  Add
-                </button>
-                <input className="table-input" placeholder="New group set name" style={{ flex: 1 }} />
-              </div>
-              <div className="muted small" style={{ marginTop: 10 }}>
-                No group sets yet.
-              </div>
-            </div>
-          </>
-        )}
+              {/* Your existing content goes here */}
+              {!panelCollapsed && (
+              <>
+                <div className="side-pane-tabs">
+                  <button className="tab active" type="button">
+                    Groups
+                  </button>
+                  <button className="tab" type="button" disabled>
+                    Properties
+                  </button>
+                </div>
+                <div className="side-pane-content">
+                  <div className="muted small">
+                    Manage group sets and groups for this list.
+                  </div>
+                  <div
+                    className="pane-header-actions row"
+                    style={{ marginTop: 8, gap: 8 }}
+                  >
+                    <button className="btn secondary small-btn" type="button">
+                      Add
+                    </button>
+                    <input
+                      className="table-input"
+                      placeholder="New group set name"
+                      style={{ flex: 1 }}
+                    />
+                  </div>
+                  <div className="muted small" style={{ marginTop: 10 }}>
+                    No group sets yet.
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {confirmDialog && (
-        <AlertDialog
+        <ConfirmDialog
           open={confirmDialog.open}
+          title={confirmDialog.title}
+          description={confirmDialog.description}
           onOpenChange={(open) => {
             if (!open) setConfirmDialog(null);
           }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
-              {confirmDialog.description && (
-                <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
-              )}
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setConfirmDialog(null)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  const action = confirmDialog.onConfirm;
-                  setConfirmDialog(null);
-                  action();
-                }}
-              >
-                Confirm
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          onConfirm={() => {
+            const action = confirmDialog.onConfirm;
+            setConfirmDialog(null);
+            action();
+          }}
+        />
       )}
+
     </div>
   );
 }
-

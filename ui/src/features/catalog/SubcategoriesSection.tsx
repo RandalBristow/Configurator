@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { categoriesApi, subcategoriesApi } from "../../api/entities";
-import { DataTable, type DataTableColumn } from "../../components/table/DataTable";
+import { DataTable, type DataTableColumn } from "../../components/table/_DataTable";
 import type { Subcategory } from "../../types/domain";
 import { toast } from "sonner";
 
