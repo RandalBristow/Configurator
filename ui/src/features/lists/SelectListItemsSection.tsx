@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useResizableSidePanel } from "../../hooks/useResizableSidePanel";
-import { selectListItemsApi, selectListsApi } from "../../api/entities";
-import type { SelectList, SelectListItem } from "../../types/domain";
+import { selectListGroupsApi, selectListItemsApi, selectListsApi } from "../../api/entities";
+import type { SelectList, SelectListGroupSet, SelectListItem } from "../../types/domain";
 import { ConfirmDialog } from "../../components/dialogs/ConfirmDialog";
 import { SelectListHeaderBar } from "../../components/select-lists/SelectListHeaderBar";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../../components/table/DataTable";
 import { DataTableToolbar } from "../../components/table/DataTableToolbar";
 import { SelectListMetaForm } from "../../components/select-lists/SelectListMetaForm";
+import { GroupSetToolbar } from "../../components/select-lists/GroupSetToolbar";
 
 type Props = {
   showInactive: boolean;
@@ -21,6 +23,9 @@ type Props = {
 };
 
 type DraftMap = Record<string, Partial<SelectListItem>>;
+
+type PendingGroupSet = { id: string; name: string; createdAt: string; updatedAt: string };
+type DisplayGroupSet = SelectListGroupSet & { __pending?: boolean };
 
 const EMPTY_ITEM: Partial<SelectListItem> = {
   value: "",
@@ -51,8 +56,26 @@ export function SelectListItemsSection({
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<SelectListItem[]>([]);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [lastSelectedListId, setLastSelectedListId] = useState<string | undefined>();
+  const [groupSetName, setGroupSetName] = useState("");
+  const [openGroupSets, setOpenGroupSets] = useState<Set<string>>(new Set());
+  const [editingGroupSetId, setEditingGroupSetId] = useState<string | null>(null);
+  const [editingGroupSetName, setEditingGroupSetName] = useState("");
+  const [groupNewRows, setGroupNewRows] = useState<Record<string, { name?: string }>>({});
+  const [groupDrafts, setGroupDrafts] = useState<Record<string, string>>({});
+  const [groupSelections, setGroupSelections] = useState<Record<string, Set<string>>>({});
+  const [selectedGroupSetId, setSelectedGroupSetId] = useState<string | undefined>();
+  const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>();
+  const [membershipsByGroup, setMembershipsByGroup] = useState<Record<string, Set<string>>>({});
+  const [membershipDirtyRowsByGroup, setMembershipDirtyRowsByGroup] = useState<Record<string, Set<string>>>({});
+  const membershipVersionRef = useRef<Record<string, number>>({});
+  const [pendingGroupAdds, setPendingGroupAdds] = useState<Record<string, string[]>>({});
+  const [pendingGroupDeletes, setPendingGroupDeletes] = useState<Record<string, Set<string>>>({});
+  const [pendingGroupSetDeletes, setPendingGroupSetDeletes] = useState<Set<string>>(new Set());
+  const [pendingGroupSetAdds, setPendingGroupSetAdds] = useState<PendingGroupSet[]>([]);
   const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
   const newRowRef = useRef<HTMLTableRowElement | null>(null);
+  const groupNewRowFirstInputRefs = useRef<Record<string, MutableRefObject<HTMLInputElement | null>>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -73,15 +96,41 @@ export function SelectListItemsSection({
     queryFn: () => selectListsApi.list(),
   });
 
+  const groupSetsQuery = useQuery({
+    queryKey: ["select-list-group-sets", currentListId],
+    queryFn: () =>
+      currentListId ? selectListGroupsApi.listGroupSets(currentListId) : Promise.resolve([]),
+    enabled: Boolean(currentListId),
+  });
+
   const itemsQuery = useQuery({
     queryKey: ["select-list-items", currentListId, showInactive],
     queryFn: () => selectListItemsApi.list(currentListId, showInactive),
     enabled: Boolean(currentListId),
   });
 
+  const membershipsQuery = useQuery({
+    queryKey: ["select-list-group-memberships", currentListId, selectedGroupSetId, selectedGroupId],
+    queryFn: () =>
+      currentListId && selectedGroupId
+        ? selectListGroupsApi.listMemberships(currentListId, selectedGroupId)
+        : Promise.resolve([]),
+     enabled: Boolean(currentListId && selectedGroupId),
+  });
+
   useEffect(() => {
+    console.debug(
+      "[SelectListItemsSection] selectListId",
+      selectListId,
+      "currentListId",
+      currentListId,
+      "isCreatingNew",
+      isCreatingNew,
+    );
     setCurrentListId(selectListId);
-    setIsCreatingNew(false);
+    if (selectListId) {
+      setIsCreatingNew(false);
+    }
   }, [selectListId]);
 
   // Auto-select first list when available
@@ -130,6 +179,22 @@ export function SelectListItemsSection({
   useEffect(() => {
     setPendingAdds([]);
     setNewRow(EMPTY_ITEM);
+    setGroupSetName("");
+    setOpenGroupSets(new Set());
+    setEditingGroupSetId(null);
+    setEditingGroupSetName("");
+    setGroupNewRows({});
+    setGroupDrafts({});
+    setGroupSelections({});
+    setSelectedGroupSetId(undefined);
+    setSelectedGroupId(undefined);
+    setMembershipsByGroup({});
+    setMembershipDirtyRowsByGroup({});
+    setPendingGroupAdds({});
+    setPendingGroupDeletes({});
+    setPendingGroupSetDeletes(new Set());
+    setPendingGroupSetAdds([]);
+    membershipVersionRef.current = {};
   }, [currentListId]);
 
   const createList = useMutation({
@@ -144,6 +209,85 @@ export function SelectListItemsSection({
       selectListsApi.update(data.id, data.payload),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["select-lists"] });
+    },
+  });
+
+  const createGroupSet = useMutation({
+    mutationFn: (data: { selectListId: string; name: string }) =>
+      selectListGroupsApi.createGroupSet(data.selectListId, {
+        name: data.name,
+      }),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const updateGroupSet = useMutation({
+    mutationFn: (data: {
+      selectListId: string;
+      setId: string;
+      name?: string;
+    boundSelectListId?: string | null;
+  }) =>
+    selectListGroupsApi.updateGroupSet(data.selectListId, data.setId, {
+      name: data.name,
+      boundSelectListId: data.boundSelectListId,
+    }),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const removeGroupSet = useMutation({
+    mutationFn: (data: { selectListId: string; setId: string }) =>
+      selectListGroupsApi.removeGroupSet(data.selectListId, data.setId),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const createGroup = useMutation({
+    mutationFn: (data: { selectListId: string; setId: string; name: string }) =>
+      selectListGroupsApi.createGroup(data.selectListId, data.setId, { name: data.name }),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const updateGroup = useMutation({
+    mutationFn: (data: { selectListId: string; setId: string; groupId: string; name: string }) =>
+      selectListGroupsApi.updateGroup(data.selectListId, data.setId, data.groupId, { name: data.name }),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const removeGroup = useMutation({
+    mutationFn: (data: { selectListId: string; setId: string; groupId: string }) =>
+      selectListGroupsApi.removeGroup(data.selectListId, data.setId, data.groupId),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: ["select-list-group-sets", variables.selectListId],
+      });
+    },
+  });
+
+  const setMemberships = useMutation({
+    mutationFn: (data: { selectListId: string; groupId: string; itemIds: string[] }) =>
+      selectListGroupsApi.setMemberships(data.selectListId, data.groupId, data.itemIds),
+    onError: (err) => {
+      console.error("Failed to save memberships", err);
+      toast.error("Memberships could not be saved. Check console.");
     },
   });
 
@@ -295,7 +439,9 @@ export function SelectListItemsSection({
       if (!window.confirm(`Import ${parsed.length} row(s)?`)) return;
       await importRecords(parsed);
     } catch (err) {
-      toast.error(String(err));
+      console.error("Save failed", err);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Save failed: ${message}`, { duration: 8000 });
     }
   };
 
@@ -347,15 +493,34 @@ export function SelectListItemsSection({
     []
   );
 
+  type SelectListItemRow = SelectListItem & { __member?: boolean };
+  type GroupRow = { id: string; name: string };
+
+  const groupColumns = useMemo<DataGridColumn<GroupRow>[]>(
+    () => [{ key: "name", header: "Group", type: "string" }],
+    []
+  );
+
   const listMetaDirty =
     (currentList?.name ?? "") !== listName ||
     (currentList?.description ?? "") !== listDescription;
+  const hasMembershipChanges = Object.values(membershipDirtyRowsByGroup).some(
+    (set) => (set?.size ?? 0) > 0,
+  );
+  const hasGroupChanges =
+    Object.keys(groupDrafts).length > 0 ||
+    Object.values(pendingGroupAdds).some((names) => names.length > 0) ||
+    Object.values(pendingGroupDeletes).some((set) => set.size > 0) ||
+    pendingGroupSetAdds.length > 0 ||
+    pendingGroupSetDeletes.size > 0;
   const hasUnsaved =
     Object.keys(drafts).length > 0 ||
     pendingDeletes.size > 0 ||
     Boolean(newRow.value?.trim() || newRow.displayValue?.trim()) ||
     listMetaDirty ||
-    pendingAdds.length > 0;
+    pendingAdds.length > 0 ||
+    hasMembershipChanges ||
+    hasGroupChanges;
 
   const finalizeNewRow = (opts?: { showError?: boolean }) => {
     const trimmedValue = newRow.value?.trim();
@@ -392,6 +557,7 @@ export function SelectListItemsSection({
 
   const resetToNewList = () => {
     setIsCreatingNew(true);
+    setLastSelectedListId(currentListId);
     setCurrentListId(undefined);
     onSelectList(undefined);
     setListName("");
@@ -415,6 +581,35 @@ export function SelectListItemsSection({
       return;
     }
     resetToNewList();
+  };
+
+  const handleCancelNewList = () => {
+    const performCancel = () => {
+      setIsCreatingNew(false);
+      setPendingAdds([]);
+      setPendingDeletes(new Set());
+      setDrafts({});
+      setNewRow(EMPTY_ITEM);
+      const fallbackId =
+        lastSelectedListId ??
+        (listsQuery.data && listsQuery.data.length ? listsQuery.data[0].id : undefined);
+      if (fallbackId) {
+        setCurrentListId(fallbackId);
+        onSelectList(fallbackId);
+      }
+    };
+
+    if (hasUnsaved) {
+      setConfirmDialog({
+        open: true,
+        title: "Discard new list?",
+        description: "Unsaved changes will be lost.",
+        onConfirm: performCancel,
+      });
+      return;
+    }
+
+    performCancel();
   };
 
   const handleDeleteList = () => {
@@ -449,13 +644,90 @@ export function SelectListItemsSection({
     void itemsQuery.refetch();
   };
 
+  const groupsDisabled = isCreatingNew || !currentListId;
+  const groupSets = groupSetsQuery.data ?? [];
+  const visibleRealGroupSets = groupSets.filter((set) => !pendingGroupSetDeletes.has(set.id));
+    const pendingDisplaySets: DisplayGroupSet[] = pendingGroupSetAdds.map((pending) => ({
+      id: pending.id,
+      selectListId: currentListId ?? "",
+      name: pending.name,
+      description: "",
+      createdAt: pending.createdAt,
+      updatedAt: pending.updatedAt,
+      groups: [],
+      __pending: true,
+    }));
+  const visibleGroupSets: DisplayGroupSet[] = [...visibleRealGroupSets, ...pendingDisplaySets];
+  const visibleGroupSetIdsKey = `${visibleRealGroupSets.map((s) => s.id).join(",")}|${pendingGroupSetAdds
+    .map((s) => s.id)
+    .join(",")}|${Array.from(pendingGroupSetDeletes).join(",")}`;
+  useEffect(() => {
+    const existing = new Set(visibleGroupSets.map((set) => set.id));
+    setOpenGroupSets((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of Array.from(next)) {
+        if (!existing.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleGroupSetIdsKey]);
+  const selectedGroupSet = visibleGroupSets.find((set) => set.id === selectedGroupSetId);
+  const selectedGroupOptions = selectedGroupSet?.groups ?? [];
+  const groupSelectionActive = Boolean(selectedGroupId);
+  const membershipIds = selectedGroupId ? membershipsByGroup[selectedGroupId] ?? new Set() : new Set();
+  const membershipDirtyRows =
+    selectedGroupId ? membershipDirtyRowsByGroup[selectedGroupId] ?? new Set() : new Set();
+
   const visibleRows = useMemo(() => {
     return [...rows, ...pendingAdds];
   }, [rows, pendingAdds]);
 
+  const tableRows = useMemo<SelectListItemRow[]>(() => {
+    return visibleRows
+      .filter((row) => !pendingDeletes.has(row.id))
+      .map((row) => ({
+        ...row,
+        __member: groupSelectionActive ? membershipIds.has(row.id) : undefined,
+      }));
+  }, [visibleRows, pendingDeletes, groupSelectionActive, membershipIds]);
+
+  const getGroupRowStatus = (_setId: string) => (row: GroupRow): "new" | "edited" | undefined => {
+    if (row.id.startsWith("pending-")) return "new";
+    if (groupDrafts[row.id]) return "edited";
+    return undefined;
+  };
+
+  const tableColumns = useMemo<DataGridColumn<SelectListItemRow>[]>(() => {
+      if (!groupSelectionActive) return columns as DataGridColumn<SelectListItemRow>[];
+    const header =
+      selectedGroupOptions.find((group) => group.id === selectedGroupId)?.name ?? "Sub";
+    const filterButtonWidth = 34;
+    const padding = 16;
+    const headerWidth = Math.min(
+      200,
+      Math.max(60, header.length * 8 + filterButtonWidth + padding),
+    );
+    return [
+      {
+        key: "__member",
+        header,
+        type: "boolean",
+        width: headerWidth,
+        align: "center",
+        enableSort: false,
+      },
+      ...(columns as DataGridColumn<SelectListItemRow>[]),
+    ];
+    }, [columns, groupSelectionActive, selectedGroupId, selectedGroupOptions]);
+
   const getRowStatus = (row: SelectListItem): "new" | "edited" | undefined => {
     if (pendingAdds.some((pending) => pending.id === row.id)) return "new";
     if (drafts[row.id]) return "edited";
+    if (membershipDirtyRows.has(row.id)) return "edited";
     return undefined;
   };
 
@@ -521,13 +793,467 @@ export function SelectListItemsSection({
       setDrafts({});
       setPendingDeletes(new Set());
       setSelectedIds(new Set());
+      const setIdByGroupId: Record<string, string> = {};
+      visibleRealGroupSets.forEach((set) => {
+        set.groups.forEach((group) => {
+          setIdByGroupId[group.id] = set.id;
+        });
+      });
+
+      for (const [groupId, draft] of Object.entries(groupDrafts)) {
+        const trimmed = draft.trim();
+        if (!trimmed) continue;
+        const setId = setIdByGroupId[groupId];
+        if (!setId) continue;
+        await updateGroup.mutateAsync({
+          selectListId: listId,
+          setId,
+          groupId,
+          name: trimmed,
+        });
+      }
+      setGroupDrafts({});
+      const stagedGroupSetAdds = pendingGroupSetAdds;
+
+      const tempSetIdMap = new Map<string, string>();
+      if (stagedGroupSetAdds.length) {
+        for (const pending of stagedGroupSetAdds) {
+          const trimmed = pending.name.trim();
+          if (!trimmed) continue;
+          const created = await createGroupSet.mutateAsync({
+            selectListId: listId,
+            name: trimmed,
+          });
+          tempSetIdMap.set(pending.id, created.id);
+        }
+      }
+
+      await Promise.all(
+        Object.entries(pendingGroupAdds).flatMap(([setId, names]) =>
+          names
+            .filter((name) => name.trim())
+            .map((name) => {
+              const targetSetId = tempSetIdMap.get(setId) ?? setId;
+              return createGroup.mutateAsync({
+                selectListId: listId,
+                setId: targetSetId,
+                name: name.trim(),
+              });
+            }),
+        ),
+      );
+      setPendingGroupAdds({});
+
+      await Promise.all(
+        Object.entries(pendingGroupDeletes).flatMap(([setId, ids]) =>
+          Array.from(ids).map((groupId) =>
+            removeGroup.mutateAsync({ selectListId: listId, setId, groupId }),
+          ),
+        ),
+      );
+      setPendingGroupDeletes({});
+
+      if (pendingGroupSetDeletes.size) {
+        await Promise.all(
+          Array.from(pendingGroupSetDeletes).map((setId) =>
+            removeGroupSet.mutateAsync({ selectListId: listId, setId }),
+          ),
+        );
+        setPendingGroupSetDeletes(new Set());
+      }
+      if (stagedGroupSetAdds.length) {
+        setPendingGroupSetAdds([]);
+      }
+
+      const dirtyGroupIds = Object.keys(membershipDirtyRowsByGroup).filter(
+        (groupId) => (membershipDirtyRowsByGroup[groupId]?.size ?? 0) > 0,
+      );
+      if (dirtyGroupIds.length) {
+        const isUuid = (val: string) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+        for (const groupId of dirtyGroupIds) {
+          const items = membershipsByGroup[groupId];
+          if (!items) continue;
+          const itemIds = Array.from(items).filter(isUuid);
+          if (itemIds.length !== items.size) {
+            console.warn("Skipping non-uuid itemIds in memberships", {
+              original: Array.from(items),
+              filtered: itemIds,
+            });
+          }
+          await setMemberships.mutateAsync({
+            selectListId: listId,
+            groupId,
+            itemIds,
+          });
+        }
+        setMembershipDirtyRowsByGroup({});
+      }
+
       // Refresh items so UI matches backend state
       const refreshed = await selectListItemsApi.list(listId, showInactive);
       setRows(refreshed);
       setNewRow(EMPTY_ITEM);
+      if (selectedGroupId) {
+        await qc.invalidateQueries({
+          queryKey: [
+            "select-list-group-memberships",
+            listId,
+            selectedGroupSetId,
+            selectedGroupId,
+          ],
+        });
+        await membershipsQuery.refetch();
+      }
       toast.success("Changes saved");
     } catch (err) {
+      console.error("Save failed", err);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Save failed: ${message}`, { duration: 8000 });
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedGroupSetId) return;
+    if (!visibleGroupSets.some((set) => set.id === selectedGroupSetId)) {
+      setSelectedGroupSetId(undefined);
+      setSelectedGroupId(undefined);
+    }
+  }, [visibleGroupSets, selectedGroupSetId]);
+
+    useEffect(() => {
+      if (!selectedGroupId) return;
+      if (!selectedGroupOptions.some((group) => group.id === selectedGroupId)) {
+        setSelectedGroupId(undefined);
+      }
+    }, [selectedGroupId, selectedGroupOptions]);
+
+  useEffect(() => {
+    if (!groupSelectionActive) return;
+    setSelectedIds(new Set());
+  }, [groupSelectionActive]);
+
+  useEffect(() => {
+    if (!membershipsQuery.data || !selectedGroupId) return;
+    if ((membershipDirtyRowsByGroup[selectedGroupId]?.size ?? 0) > 0) return;
+    const incomingVersion = membershipsQuery.dataUpdatedAt;
+    const currentVersion = membershipVersionRef.current[selectedGroupId] ?? 0;
+    if (incomingVersion <= currentVersion) return;
+    const next = new Set(membershipsQuery.data.map((entry) => entry.itemId));
+    setMembershipsByGroup((prev) => ({ ...prev, [selectedGroupId]: next }));
+    membershipVersionRef.current = {
+      ...membershipVersionRef.current,
+      [selectedGroupId]: incomingVersion,
+    };
+  }, [membershipsQuery.data, membershipsQuery.dataUpdatedAt, selectedGroupId, membershipDirtyRowsByGroup]);
+
+  const handleToggleMembership = (itemId: string, nextChecked: boolean) => {
+    if (!selectedGroupId) return;
+    if (itemId.startsWith("local-")) {
+      toast.error("Save the row before adding it to a group.");
+      return;
+    }
+    setMembershipsByGroup((prev) => {
+      const next = new Set(prev[selectedGroupId] ?? []);
+      if (nextChecked) next.add(itemId);
+      else next.delete(itemId);
+      return { ...prev, [selectedGroupId]: next };
+    });
+    setMembershipDirtyRowsByGroup((prev) => {
+      const next = { ...prev };
+      const dirty = new Set(next[selectedGroupId] ?? []);
+      dirty.add(itemId);
+      next[selectedGroupId] = dirty;
+      return next;
+    });
+    membershipVersionRef.current = {
+      ...membershipVersionRef.current,
+      [selectedGroupId]: Date.now(),
+    };
+  };
+
+  const toggleGroupSetOpen = (setId: string) => {
+    setOpenGroupSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
+  };
+
+  const isGroupSetNameTaken = (name: string, ignoreId?: string | null) => {
+    const normalized = name.trim().toLowerCase();
+    if (
+      pendingGroupSetAdds.some(
+        (pending) => pending.id !== ignoreId && pending.name.trim().toLowerCase() === normalized,
+      )
+    ) {
+      return true;
+    }
+    return groupSets.some(
+      (set) => set.id !== ignoreId && set.name.trim().toLowerCase() === normalized,
+    );
+  };
+
+  const handleAddGroupSet = () => {
+    if (groupsDisabled) return;
+    const name = groupSetName.trim();
+    if (!name) {
+      toast.error("Group set name is required");
+      return;
+    }
+    const normalized = name.toLowerCase();
+    if (
+      isGroupSetNameTaken(name) ||
+      pendingGroupSetAdds.some((existing) => existing.name.toLowerCase() === normalized)
+    ) {
+      toast.error("Group set name must be unique");
+      return;
+    }
+    const tempId = `pending-set-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const nowIso = new Date().toISOString();
+    setPendingGroupSetAdds((prev) => [
+      ...prev,
+      { id: tempId, name, createdAt: nowIso, updatedAt: nowIso },
+    ]);
+    setOpenGroupSets((prev) => {
+      const next = new Set(prev);
+      next.add(tempId);
+      return next;
+    });
+    setSelectedGroupSetId(tempId);
+    setSelectedGroupId(undefined);
+    setGroupSetName("");
+    toast.success("Group set staged for creation");
+  };
+
+  const handleStartEditGroupSet = (set: SelectListGroupSet) => {
+    setEditingGroupSetId(set.id);
+    setEditingGroupSetName(set.name);
+  };
+
+  const handleCancelEditGroupSet = () => {
+    setEditingGroupSetId(null);
+    setEditingGroupSetName("");
+  };
+
+  const handleSaveGroupSet = async (setId: string) => {
+    if (!currentListId) return;
+    const name = editingGroupSetName.trim();
+    if (!name) {
+      toast.error("Group set name is required");
+      return;
+    }
+    if (isGroupSetNameTaken(name, setId)) {
+      toast.error("Group set name must be unique");
+      return;
+    }
+    try {
+      await updateGroupSet.mutateAsync({ selectListId: currentListId, setId, name });
+      setEditingGroupSetId(null);
+      setEditingGroupSetName("");
+    } catch (err) {
+      toast.error(`Update failed: ${String(err)}`);
+    }
+  };
+
+  const handleDeleteGroupSet = (set: DisplayGroupSet) => {
+    if (!currentListId) return;
+    setConfirmDialog({
+      open: true,
+      title: `Delete "${set.name}"?`,
+      description: "This will stage the group set for deletion while you save.",
+      onConfirm: () => {
+        if (set.__pending) {
+          setPendingGroupSetAdds((prev) => prev.filter((pending) => pending.id !== set.id));
+          toast.warning("Pending group set removed");
+          return;
+        }
+        setPendingGroupSetDeletes((prev) => {
+          const next = new Set(prev);
+          next.add(set.id);
+          return next;
+        });
+        setOpenGroupSets((prev) => {
+          const next = new Set(prev);
+          next.delete(set.id);
+          return next;
+        });
+        setGroupSelections((prev) => {
+          const next = { ...prev };
+          delete next[set.id];
+          return next;
+        });
+        setPendingGroupAdds((prev) => {
+          const next = { ...prev };
+          delete next[set.id];
+          return next;
+        });
+        setPendingGroupDeletes((prev) => {
+          const next = { ...prev };
+          delete next[set.id];
+          return next;
+        });
+        if (selectedGroupSetId === set.id) {
+          setSelectedGroupSetId(undefined);
+          setSelectedGroupId(undefined);
+        }
+        toast.warning("Group set staged for deletion");
+      },
+    });
+  };
+
+  const handleCreateGroup = (setId: string, name: string) => {
+    if (groupsDisabled) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const set = groupSets.find((s) => s.id === setId);
+    const existingNames = new Set<string>();
+    set?.groups.forEach((group) => existingNames.add(group.name.trim().toLowerCase()));
+    (pendingGroupAdds[setId] ?? []).forEach((pending) =>
+      existingNames.add(pending.trim().toLowerCase()),
+    );
+    if (existingNames.has(trimmed.toLowerCase())) {
+      toast.error("Group name must be unique in this set");
+      return;
+    }
+    setPendingGroupAdds((prev) => ({
+      ...prev,
+      [setId]: [...(prev[setId] ?? []), trimmed],
+    }));
+  };
+
+  const handleGroupNewRowChange = (setId: string, value: string) => {
+    setGroupNewRows((prev) => ({ ...prev, [setId]: { name: value } }));
+  };
+
+  const getGroupNewRowFirstInputRef = (
+    setId: string,
+  ): MutableRefObject<HTMLInputElement | null> => {
+    if (!groupNewRowFirstInputRefs.current[setId]) {
+      groupNewRowFirstInputRefs.current[setId] = { current: null };
+    }
+    return groupNewRowFirstInputRefs.current[setId];
+  };
+
+  const handleGroupNewRowBlur = (setId: string) => {
+    const name = groupNewRows[setId]?.name ?? "";
+    if (!name.trim()) return;
+    handleCreateGroup(setId, name);
+    setGroupNewRows((prev) => ({ ...prev, [setId]: { name: "" } }));
+    requestAnimationFrame(() => {
+      getGroupNewRowFirstInputRef(setId).current?.focus();
+    });
+  };
+
+  const handleGroupNameChange = (_setId: string, groupId: string, value: string) => {
+    setGroupDrafts((prev) => ({ ...prev, [groupId]: value }));
+  };
+
+  const handleToggleGroupSelect = (setId: string, groupId: string) => {
+    setGroupSelections((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[setId] ?? []);
+      if (set.has(groupId)) set.delete(groupId);
+      else set.add(groupId);
+      next[setId] = set;
+      return next;
+    });
+  };
+
+  const handleToggleGroupSelectAll = (setId: string, ids: string[]) => {
+    setGroupSelections((prev) => ({ ...prev, [setId]: new Set(ids) }));
+  };
+
+  const handleDeleteSelectedGroups = (set: SelectListGroupSet) => {
+    if (!currentListId) return;
+    const selection = groupSelections[set.id];
+    const ids = selection ? Array.from(selection) : [];
+    if (!ids.length) return;
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${ids.length} group(s)?`,
+      description: "This cannot be undone.",
+      onConfirm: async () => {
+        setPendingGroupDeletes((prev) => {
+          const next = { ...prev };
+          const setDeletes = new Set(next[set.id] ?? []);
+          ids.forEach((groupId) => setDeletes.add(groupId));
+          next[set.id] = setDeletes;
+          return next;
+        });
+        setGroupSelections((prev) => ({ ...prev, [set.id]: new Set() }));
+        toast.success(`${ids.length} group(s) staged for deletion`);
+      },
+    });
+  };
+
+  const parseGroupNames = (text: string) => {
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.split(/[\t,]/)[0].trim())
+      .filter(Boolean);
+  };
+
+  const handleImportGroups = async (set: SelectListGroupSet, names: string[]) => {
+    if (!currentListId) return;
+    const existing = new Set(set.groups.map((g) => g.name.trim().toLowerCase()));
+    const uniqueNames = Array.from(
+      new Set(names.map((n) => n.trim()).filter(Boolean)),
+    ).filter((name) => !existing.has(name.toLowerCase()));
+    if (!uniqueNames.length) {
+      toast.error("No new groups to import");
+      return;
+    }
+    await Promise.all(
+      uniqueNames.map((name) =>
+        createGroup.mutateAsync({ selectListId: currentListId, setId: set.id, name }),
+      ),
+    );
+    toast.success(`Imported ${uniqueNames.length} group(s)`);
+  };
+
+  const handleImportGroupsFromClipboard = async (set: SelectListGroupSet) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const names = parseGroupNames(text);
+      await handleImportGroups(set, names);
+    } catch (err) {
       toast.error(String(err));
+    }
+  };
+
+  const handleImportGroupsFromFile = async (
+    set: SelectListGroupSet,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const names = parseGroupNames(text);
+      await handleImportGroups(set, names);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleCopySelectedGroups = async (set: SelectListGroupSet) => {
+    const selection = groupSelections[set.id];
+    const ids = selection ? Array.from(selection) : [];
+    if (!ids.length) return;
+    const selectedNames = set.groups
+      .filter((g) => ids.includes(g.id))
+      .map((g) => g.name);
+    try {
+      await navigator.clipboard.writeText(selectedNames.join("\n"));
+      toast.success("Copied selected groups");
+    } catch {
+      toast.error("Copy failed");
     }
   };
 
@@ -545,6 +1271,8 @@ export function SelectListItemsSection({
             currentListId={currentListId}
             lists={filteredLists}
             search={search}
+            isCreatingNew={isCreatingNew}
+            controlsDisabled={isCreatingNew}
             onSearchChange={setSearch}
             onChangeList={(id) => {
               if (!id) {
@@ -558,6 +1286,7 @@ export function SelectListItemsSection({
             onNew={handleStartNewList}
             onSave={handleSaveAll}
             onDelete={handleDeleteList}
+            onCancel={isCreatingNew ? handleCancelNewList : undefined}
             saveDisabled={!listName.trim()}
             deleteDisabled={!currentListId}
           />
@@ -575,9 +1304,52 @@ export function SelectListItemsSection({
               onFocusSelectAll={handleFocusSelectAll}
             />
 
+            <div className="table-toolbar" style={{ marginBottom: 10 }}>
+              <div className="table-toolbar-left" style={{ gap: 12 }}>
+                <label className="small" style={{ fontWeight: 600 }}>
+                  Group set
+                  <select
+                    className="table-input"
+                    style={{ marginLeft: 0, minWidth: 180 }}
+                    value={selectedGroupSetId ?? ""}
+                    onChange={(e) => {
+                      const nextId = e.target.value || undefined;
+                      setSelectedGroupSetId(nextId);
+                      setSelectedGroupId(undefined);
+                    }}
+                    disabled={groupsDisabled}
+                  >
+                    <option value="">Select group set</option>
+                    {groupSets.map((set) => (
+                      <option key={set.id} value={set.id}>
+                        {set.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="small" style={{ fontWeight: 600 }}>
+                  Group
+                      <select
+                        className="table-input"
+                        style={{ marginLeft: 0, minWidth: 180 }}
+                        value={selectedGroupId ?? ""}
+                        onChange={(e) => setSelectedGroupId(e.target.value || undefined)}
+                        disabled={groupsDisabled || !selectedGroupSetId}
+                      >
+                        <option value="">Select group</option>
+                        {selectedGroupOptions.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                </label>
+              </div>
+            </div>
             <DataTableToolbar
               selectedCount={selectedIds.size}
               canReset={Boolean(currentListId)}
+              disabled={isCreatingNew}
               onImportClipboard={handleImportClipboard}
               onImportFile={handleImportFile}
               onClearSelection={handleClearSelection}
@@ -588,17 +1360,24 @@ export function SelectListItemsSection({
 
             <div className="table-pane">
               <DataGrid
-                columns={columns}
-                rows={visibleRows.filter((row) => !pendingDeletes.has(row.id))}
+                columns={tableColumns}
+                rows={tableRows}
                 getRowId={(row) => row.id}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
                 onToggleSelectAll={(ids) => setSelectedIds(new Set(ids))}
-                onRowChange={handleRowChange}
-                newRow={newRow}
-                onNewRowChange={(key, value) =>
-                  setNewRow((prev) => ({ ...prev, [key]: value }))
-                }
+                onRowChange={(id, key, value) => {
+                  if (key === "__member") {
+                    handleToggleMembership(id, Boolean(value));
+                    return;
+                  }
+                  handleRowChange(id, key as keyof SelectListItem, value);
+                }}
+                newRow={newRow as Partial<SelectListItemRow>}
+                onNewRowChange={(key, value) => {
+                  if (key === "__member") return;
+                  setNewRow((prev) => ({ ...prev, [key]: value }));
+                }}
                 onFocusSelectAll={handleFocusSelectAll}
                 newRowRef={newRowRef}
                 newRowFirstInputRef={newRowFirstInputRef}
@@ -606,7 +1385,9 @@ export function SelectListItemsSection({
                 enableSelection
                 enableFilters
                 enableSorting
-                getRowStatus={getRowStatus}
+                selectionDisabled={groupSelectionActive}
+                disabled={isCreatingNew}
+                getRowStatus={(row) => getRowStatus(row)}
               />
             </div>
           </div>
@@ -690,22 +1471,165 @@ export function SelectListItemsSection({
                   <div className="muted small">
                     Manage group sets and groups for this list.
                   </div>
-                  <div
-                    className="pane-header-actions row"
-                    style={{ marginTop: 8, gap: 8 }}
-                  >
-                    <button className="btn secondary small-btn" type="button">
+                  {groupsDisabled && (
+                    <div className="muted small" style={{ marginTop: 8 }}>
+                      Save the select list to manage group sets.
+                    </div>
+                  )}
+                  <div className="pane-header-actions row" style={{ marginTop: 8, gap: 8 }}>
+                    <button
+                      className="btn secondary small-btn"
+                      type="button"
+                      onClick={handleAddGroupSet}
+                      disabled={groupsDisabled || createGroupSet.isPending}
+                    >
                       Add
                     </button>
                     <input
                       className="table-input"
                       placeholder="New group set name"
                       style={{ flex: 1 }}
+                      value={groupSetName}
+                      onChange={(e) => setGroupSetName(e.target.value)}
+                      disabled={groupsDisabled}
                     />
                   </div>
-                  <div className="muted small" style={{ marginTop: 10 }}>
-                    No group sets yet.
-                  </div>
+                  {groupSetsQuery.isLoading && (
+                    <div className="muted small" style={{ marginTop: 10 }}>
+                      Loading group sets...
+                    </div>
+                  )}
+                  {!groupSetsQuery.isLoading && visibleGroupSets.length === 0 && (
+                    <div className="muted small" style={{ marginTop: 10 }}>
+                      No group sets yet.
+                    </div>
+                  )}
+                    {visibleGroupSets.map((set) => {
+                      const isOpen = openGroupSets.has(set.id);
+                      const isEditing = editingGroupSetId === set.id;
+                      const existingRows: GroupRow[] = (set.groups ?? []).map((group) => ({
+                        id: group.id,
+                        name: groupDrafts[group.id] ?? group.name,
+                      }));
+                      const pendingRows = (pendingGroupAdds[set.id] ?? []).map((name, idx) => ({
+                        id: `pending-${set.id}-${idx}`,
+                        name,
+                      }));
+                      const deletes = pendingGroupDeletes[set.id] ?? new Set<string>();
+                      const activeRows = existingRows.filter((row) => !deletes.has(row.id));
+                      const groupRows: GroupRow[] = [...activeRows, ...pendingRows];
+                      const selectedGroups = groupSelections[set.id] ?? new Set<string>();
+                      return (
+                        <div key={set.id} className="group-set">
+                          <div className="group-set-header">
+                            <button
+                              className="group-set-toggle"
+                              type="button"
+                              onClick={() => toggleGroupSetOpen(set.id)}
+                            >
+                              {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              {isEditing ? (
+                                <input
+                                  className="table-input"
+                                  value={editingGroupSetName}
+                                  onChange={(e) => setEditingGroupSetName(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ width: "100%" }}
+                                />
+                              ) : (
+                                <span className="group-set-title">{set.name}</span>
+                              )}
+                            </button>
+                            <div className="group-set-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="icon-plain"
+                                    type="button"
+                                    title="Save name"
+                                    onClick={() => handleSaveGroupSet(set.id)}
+                                    disabled={updateGroupSet.isPending}
+                                  >
+                                    <Check size={18} />
+                                  </button>
+                                  <button
+                                    className="icon-plain"
+                                    type="button"
+                                    title="Cancel"
+                                    onClick={handleCancelEditGroupSet}
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="icon-plain"
+                                    type="button"
+                                    title="Edit group set"
+                                    onClick={() => handleStartEditGroupSet(set)}
+                                    disabled={groupsDisabled}
+                                  >
+                                    <Pencil size={18} />
+                                  </button>
+                                  <button
+                                    className="icon-plain"
+                                    type="button"
+                                    title="Delete group set"
+                                    onClick={() => handleDeleteGroupSet(set)}
+                                    disabled={groupsDisabled}
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {isOpen && (
+                            <div className="group-set-body">
+                                <GroupSetToolbar
+                                  disabled={groupsDisabled}
+                                  hasSelection={selectedGroups.size > 0}
+                                onImportClipboard={() => handleImportGroupsFromClipboard(set)}
+                                onImportFile={(e) => {
+                                  handleImportGroupsFromFile(set, e);
+                                }}
+                                onClearSelection={() => handleToggleGroupSelectAll(set.id, [])}
+                                onCopySelected={() => handleCopySelectedGroups(set)}
+                                onDeleteSelected={() => handleDeleteSelectedGroups(set)}
+                              />
+                              <div className="group-set-table">
+                                <DataGrid
+                                  columns={groupColumns}
+                                  rows={groupRows}
+                                  getRowId={(row) => row.id}
+                                  selectedIds={selectedGroups}
+                                  onToggleSelect={(id) => handleToggleGroupSelect(set.id, id)}
+                                  onToggleSelectAll={(ids) =>
+                                    handleToggleGroupSelectAll(set.id, ids)
+                                  }
+                                  onRowChange={(id, _key, value) =>
+                                    handleGroupNameChange(set.id, id, String(value))
+                                  }
+                                  newRow={groupNewRows[set.id] ?? {}}
+                                    onNewRowChange={(_key, value) =>
+                                      handleGroupNewRowChange(set.id, String(value))
+                                    }
+                                    onNewRowBlur={() => handleGroupNewRowBlur(set.id)}
+                                    newRowFirstInputRef={getGroupNewRowFirstInputRef(set.id)}
+                                    enableSelection
+                                  enableFilters={false}
+                                  enableSorting={false}
+                                  showNewRow
+                                  disabled={groupsDisabled}
+                                  getRowStatus={getGroupRowStatus(set.id)}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </>
             )}

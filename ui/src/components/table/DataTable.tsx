@@ -30,10 +30,13 @@ type DataGridProps<T> = {
   newRowRef?: React.RefObject<HTMLTableRowElement | null>;
   newRowFirstInputRef?: React.RefObject<HTMLInputElement | null>;
   onNewRowBlur?: (e: React.FocusEvent<HTMLTableRowElement>) => void;
+  showNewRow?: boolean;
   enableSelection?: boolean;
+  selectionDisabled?: boolean;
   enableFilters?: boolean;
   enableSorting?: boolean;
   getRowStatus?: (row: T) => "new" | "edited" | undefined;
+  disabled?: boolean;
 };
 
 type SortState<T> = { key: keyof T; dir: "asc" | "desc" } | null;
@@ -52,10 +55,13 @@ export function DataGrid<T>({
   newRowRef,
   newRowFirstInputRef,
   onNewRowBlur,
+  showNewRow = true,
   enableSelection = true,
+  selectionDisabled = false,
   enableFilters = true,
   enableSorting = true,
   getRowStatus,
+  disabled = false,
 }: DataGridProps<T>) {
   const [sort, setSort] = useState<SortState<T>>(null);
   const [filters, setFilters] = useState<Record<string, { text: string; values: string[] }>>({});
@@ -180,6 +186,7 @@ export function DataGrid<T>({
           className="table-checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
+          onDragStart={(e) => e.preventDefault()}
         />
       );
     }
@@ -192,6 +199,8 @@ export function DataGrid<T>({
           value={value ?? 0}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
           onFocus={onFocusSelectAll}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
         />
       );
     }
@@ -204,6 +213,8 @@ export function DataGrid<T>({
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           onFocus={onFocusSelectAll}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
         />
       );
     }
@@ -214,13 +225,19 @@ export function DataGrid<T>({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocusSelectAll}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
       />
     );
   };
 
   return (
     <>
-      <table className="data-table dense selectable">
+      <table
+        className="data-table dense selectable"
+        style={disabled ? { pointerEvents: "none", opacity: 0.6 } : undefined}
+        aria-disabled={disabled || undefined}
+      >
       <thead>
         <tr>
           {enableSelection && (
@@ -228,8 +245,13 @@ export function DataGrid<T>({
               <button
                 type="button"
                 className={`row-select-handle ${allSelected ? "active" : ""}`}
-                onClick={() => onToggleSelectAll?.(allSelected ? [] : visibleIds)}
+                onClick={
+                  selectionDisabled
+                    ? undefined
+                    : () => onToggleSelectAll?.(allSelected ? [] : visibleIds)
+                }
                 title="Select all"
+                disabled={selectionDisabled}
               >
                 o
               </button>
@@ -306,8 +328,9 @@ export function DataGrid<T>({
                   <button
                     type="button"
                     className={`row-select-handle ${selected ? "active" : ""}`}
-                    onClick={() => onToggleSelect?.(id)}
+                    onClick={selectionDisabled ? undefined : () => onToggleSelect?.(id)}
                     title={selected ? "Deselect row" : "Select row"}
+                    disabled={selectionDisabled}
                   >
                     o
                   </button>
@@ -321,19 +344,21 @@ export function DataGrid<T>({
             </tr>
           );
         })}
-        <tr className="new-row" ref={newRowRef} onBlur={onNewRowBlur}>
-          {enableSelection && <td />}
-          {columns.map((col, idx) => (
-            <td key={`new-${String(col.key)}`} className={col.align}>
-              {renderCellInput(
-                (newRow as any)[col.key],
-                col,
-                (val) => onNewRowChange(col.key, val),
-                idx === 0 ? newRowFirstInputRef : undefined,
-              )}
-            </td>
-          ))}
-        </tr>
+        {showNewRow && (
+          <tr className="new-row" ref={newRowRef} onBlur={onNewRowBlur}>
+            {enableSelection && <td />}
+            {columns.map((col, idx) => (
+              <td key={`new-${String(col.key)}`} className={col.align}>
+                {renderCellInput(
+                  (newRow as any)[col.key],
+                  col,
+                  (val) => onNewRowChange(col.key, val),
+                  idx === 0 ? newRowFirstInputRef : undefined,
+                )}
+              </td>
+            ))}
+          </tr>
+        )}
       </tbody>
       </table>
       {filterMenu && (
