@@ -79,10 +79,32 @@ export const selectListGroupsApi = {
     api.get<SelectListMembership[]>(`/select-list-groups/${selectListId}/groups/${groupId}/memberships`),
   setMemberships: (selectListId: string, groupId: string, itemIds: string[]) =>
     api.post<void>(`/select-list-groups/${selectListId}/groups/${groupId}/memberships`, { itemIds }),
-  createGroupSet: (selectListId: string, data: { name: string; description?: string | null }) =>
+  listBoundMemberships: (selectListId: string, setId: string, boundItemId: string) =>
+    api.get<SelectListMembership[]>(
+      `/select-list-groups/${selectListId}/group-sets/${setId}/bound-items/${boundItemId}/memberships`,
+    ),
+  setBoundMemberships: (selectListId: string, setId: string, boundItemId: string, itemIds: string[]) =>
+    api.post<void>(
+      `/select-list-groups/${selectListId}/group-sets/${setId}/bound-items/${boundItemId}/memberships`,
+      { itemIds },
+    ),
+  createGroupSet: (
+    selectListId: string,
+    data: { name: string; description?: string | null; boundSelectListId?: string | null },
+  ) =>
     api.post<SelectListGroupSet>(`/select-list-groups/${selectListId}/group-sets`, data),
   createGroup: (selectListId: string, setId: string, data: { name: string }) =>
     api.post(`/select-list-groups/${selectListId}/group-sets/${setId}/groups`, data),
   updateGroup: (selectListId: string, setId: string, groupId: string, data: { name: string }) =>
     api.put(`/select-list-groups/${selectListId}/group-sets/${setId}/groups/${groupId}`, data),
+  updateGroupSet: (
+    selectListId: string,
+    setId: string,
+    data: { name?: string; description?: string | null; boundSelectListId?: string | null },
+  ) =>
+    api.put(`/select-list-groups/${selectListId}/group-sets/${setId}`, data),
+  removeGroupSet: (selectListId: string, setId: string) =>
+    api.del(`/select-list-groups/${selectListId}/group-sets/${setId}`),
+  removeGroup: (selectListId: string, setId: string, groupId: string) =>
+    api.del(`/select-list-groups/${selectListId}/group-sets/${setId}/groups/${groupId}`),
 };

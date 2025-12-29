@@ -78,6 +78,7 @@ export default function App() {
 
   // Auto-select first list when available so the list items view is ready (unless we're in "new list" mode).
   useEffect(() => {
+    console.debug("[App] selectedSelectList", selectedSelectList, "creatingNewList", creatingNewList);
     if (!creatingNewList && !selectedSelectList && (optionLists.data?.length ?? 0) > 0) {
       setSelectedSelectList(optionLists.data![0].id);
     }
@@ -232,7 +233,7 @@ export default function App() {
           showInactive={showInactive}
           selectListId={selectedSelectList}
           onSelectList={(id) => {
-            setCreatingNewList(false);
+            setCreatingNewList(!id);
             setSelectedSelectList(id);
           }}
         />

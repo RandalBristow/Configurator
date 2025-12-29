@@ -1,10 +1,12 @@
 import type { SelectList } from "../../types/domain";
-import { SaveIcon, ListPlus, ListFilter, Trash } from "lucide-react";
+import { SaveIcon, ListPlus, ListFilter, Trash, X } from "lucide-react";
 
 type Props = {
   currentListId?: string;
   lists: SelectList[];
   search: string;
+  isCreatingNew?: boolean;
+  controlsDisabled?: boolean;
 
   onChangeList: (id?: string) => void;
   onSearchChange: (value: string) => void;
@@ -12,6 +14,7 @@ type Props = {
   onNew: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onCancel?: () => void;
 
   saveDisabled?: boolean;
   deleteDisabled?: boolean;
@@ -21,11 +24,14 @@ export function SelectListHeaderBar({
   currentListId,
   lists,
   search,
+  isCreatingNew,
+  controlsDisabled,
   onChangeList,
   onSearchChange,
   onNew,
   onSave,
   onDelete,
+  onCancel,
   saveDisabled,
   deleteDisabled,
 }: Props) {
@@ -37,10 +43,11 @@ export function SelectListHeaderBar({
           className="icon-btn"
           style={{ marginRight: 20 }}
           type="button"
-          title="Add new select list"
-          onClick={onNew}
+          title={isCreatingNew ? "Cancel new select list" : "Add new select list"}
+          onClick={isCreatingNew ? onCancel : onNew}
+          disabled={controlsDisabled && !isCreatingNew}
         >
-          <ListPlus size={16} />
+          {isCreatingNew ? <X size={16} /> : <ListPlus size={16} />}
         </button>
         <div className="data-form-header-tab-divider" />
         <div>
@@ -60,11 +67,11 @@ export function SelectListHeaderBar({
             type="button"
             title="Delete currrent select list"
             onClick={onDelete}
-            disabled={deleteDisabled}
+            disabled={deleteDisabled || controlsDisabled}
           >
             <Trash size={16} />
           </button>
-
+          {isCreatingNew && onCancel && null}
         </div>
         <div>
           <div style={{ display: "flex" }}>
@@ -74,6 +81,7 @@ export function SelectListHeaderBar({
                 style={{ width: 250 }}
                 value={currentListId ?? ""}
                 onChange={(e) => onChangeList(e.target.value || undefined)}
+                disabled={controlsDisabled}
               >
                 {lists.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -89,6 +97,7 @@ export function SelectListHeaderBar({
               style={{ width: 250 , marginRight: 5 }}
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
+              disabled={controlsDisabled}
             />
             {/* TODO: Use popover for filter options and remove the above input */}
             <button
@@ -97,6 +106,7 @@ export function SelectListHeaderBar({
               type="button"
               title="Filter select lists"
               onClick={onNew}
+              disabled={controlsDisabled}
             >
               <ListFilter size={16} />
             </button>

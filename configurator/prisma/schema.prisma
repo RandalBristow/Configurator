@@ -88,6 +88,7 @@ model SelectList {
   items       SelectListItem[]
   attributes  Attribute[]
   groupSets   SelectListGroupSet[]
+  boundGroupSets SelectListGroupSet[] @relation("SelectListGroupSetBound")
 }
 
 model SelectListItem {
@@ -103,6 +104,8 @@ model SelectListItem {
   updatedAt     DateTime                @updatedAt
   properties    SelectListItemProperty[]
   memberships   SelectListItemGroup[]
+  boundMemberships SelectListBoundMembership[] @relation("SelectListBoundMembershipItem")
+  boundGroupMemberships SelectListBoundMembership[] @relation("SelectListBoundMembershipBoundItem")
 
   selectList SelectList @relation(fields: [selectListId], references: [id], onDelete: Cascade)
 }
@@ -133,11 +136,14 @@ model SelectListGroupSet {
   selectListId String
   name         String
   description  String?
+  boundSelectListId String?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   groups       SelectListGroup[]
+  boundMemberships SelectListBoundMembership[]
 
   selectList SelectList @relation(fields: [selectListId], references: [id], onDelete: Cascade)
+  boundSelectList SelectList? @relation("SelectListGroupSetBound", fields: [boundSelectListId], references: [id])
 
   @@unique([selectListId, name])
 }
@@ -163,5 +169,18 @@ model SelectListItemGroup {
   group SelectListGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@id([itemId, groupId])
+}
+
+model SelectListBoundMembership {
+  itemId      String
+  boundItemId String
+  groupSetId  String
+
+  item      SelectListItem    @relation("SelectListBoundMembershipItem", fields: [itemId], references: [id], onDelete: Cascade)
+  boundItem SelectListItem    @relation("SelectListBoundMembershipBoundItem", fields: [boundItemId], references: [id], onDelete: Cascade)
+  groupSet  SelectListGroupSet @relation(fields: [groupSetId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, boundItemId, groupSetId])
+  @@index([groupSetId, boundItemId])
 }
         

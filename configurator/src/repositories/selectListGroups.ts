@@ -4,6 +4,7 @@ import type {
   SelectListGroup,
   SelectListGroupSet,
   SelectListItemGroup,
+  SelectListBoundMembership,
 } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma/client";
 
@@ -20,7 +21,7 @@ export async function listGroupSets(selectListId: string, client?: PrismaClientO
 
 export async function createGroupSet(
   selectListId: string,
-  input: { name: string; description?: string | null },
+  input: { name: string; description?: string | null; boundSelectListId?: string | null },
   client?: PrismaClientOrTx,
 ): Promise<SelectListGroupSet> {
   return withClient(client).selectListGroupSet.create({
@@ -28,13 +29,14 @@ export async function createGroupSet(
       selectListId,
       name: input.name,
       description: input.description ?? null,
+      boundSelectListId: input.boundSelectListId ?? null,
     },
   });
 }
 
 export async function updateGroupSet(
   setId: string,
-  input: { name?: string; description?: string | null },
+  input: { name?: string; description?: string | null; boundSelectListId?: string | null },
   client?: PrismaClientOrTx,
 ): Promise<SelectListGroupSet> {
   return withClient(client).selectListGroupSet.update({
@@ -82,17 +84,49 @@ export async function getMembershipsByGroup(
   });
 }
 
+export async function getBoundMemberships(
+  setId: string,
+  boundItemId: string,
+  client?: PrismaClientOrTx,
+): Promise<SelectListBoundMembership[]> {
+  return withClient(client).selectListBoundMembership.findMany({
+    where: { groupSetId: setId, boundItemId },
+    select: { itemId: true, boundItemId: true, groupSetId: true },
+  });
+}
+
 export async function setGroupMemberships(
   groupId: string,
   itemIds: string[],
   client?: PrismaClientOrTx,
 ) {
-  const runner = defaultPrisma;
-  return runner.$transaction(async (tx) => {
+  return defaultPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.selectListItemGroup.deleteMany({ where: { groupId } });
     if (itemIds.length === 0) return;
     await tx.selectListItemGroup.createMany({
       data: itemIds.map((itemId) => ({ itemId, groupId })),
+      skipDuplicates: true,
+    });
+  });
+}
+
+export async function setBoundMemberships(
+  setId: string,
+  boundItemId: string,
+  itemIds: string[],
+  client?: PrismaClientOrTx,
+) {
+  return defaultPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await tx.selectListBoundMembership.deleteMany({
+      where: { groupSetId: setId, boundItemId },
+    });
+    if (itemIds.length === 0) return;
+    await tx.selectListBoundMembership.createMany({
+      data: itemIds.map((itemId) => ({
+        itemId,
+        boundItemId,
+        groupSetId: setId,
+      })),
       skipDuplicates: true,
     });
   });

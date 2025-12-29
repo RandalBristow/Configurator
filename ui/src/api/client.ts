@@ -23,7 +23,24 @@ async function request<T>(path: string, options: Options = {}) {
   const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
+    let message = text;
+    let details: unknown;
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as { message?: string; details?: unknown };
+        if (parsed?.message) message = parsed.message;
+        if (parsed?.details) details = parsed.details;
+      } catch {
+        // ignore parse errors
+      }
+    }
+    if (details) {
+      console.error("API error details", details);
+    }
+    if (details) {
+      throw new Error(`${message || `Request failed: ${res.status}`}: ${JSON.stringify(details)}`);
+    }
+    throw new Error(message || `Request failed: ${res.status}`);
   }
   if (res.status === 204) return null as T;
   return (await res.json()) as T;

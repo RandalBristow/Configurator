@@ -10,6 +10,8 @@ import {
   groupIdParams,
   groupUpdate,
   membershipBatch,
+  membershipParams,
+  boundMembershipParams,
 } from "../validators/selectListGroups";
 
 export const selectListGroupsRouter = Router();
@@ -114,7 +116,7 @@ selectListGroupsRouter.delete(
 
 selectListGroupsRouter.post(
   "/:listId/groups/:groupId/memberships",
-  validate({ params: groupIdParams, body: membershipBatch }),
+  validate({ params: membershipParams, body: membershipBatch }),
   async (req, res, next) => {
     try {
       const groupId = req.params.groupId as string;
@@ -128,12 +130,40 @@ selectListGroupsRouter.post(
 
 selectListGroupsRouter.get(
   "/:listId/groups/:groupId/memberships",
-  validate({ params: groupIdParams }),
+  validate({ params: membershipParams }),
   async (req, res, next) => {
     try {
       const groupId = req.params.groupId as string;
       const memberships = await selectListGroupsService.listMemberships(groupId);
       res.json(memberships);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+selectListGroupsRouter.get(
+  "/:listId/group-sets/:setId/bound-items/:boundItemId/memberships",
+  validate({ params: boundMembershipParams }),
+  async (req, res, next) => {
+    try {
+      const { setId, boundItemId } = req.params as { setId: string; boundItemId: string };
+      const memberships = await selectListGroupsService.listBoundMemberships(setId, boundItemId);
+      res.json(memberships);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+selectListGroupsRouter.post(
+  "/:listId/group-sets/:setId/bound-items/:boundItemId/memberships",
+  validate({ params: boundMembershipParams, body: membershipBatch }),
+  async (req, res, next) => {
+    try {
+      const { setId, boundItemId } = req.params as { setId: string; boundItemId: string };
+      await selectListGroupsService.setBoundMemberships(setId, boundItemId, req.body.itemIds ?? []);
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

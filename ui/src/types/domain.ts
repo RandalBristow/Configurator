@@ -65,10 +65,13 @@ export type SelectListGroupSet = {
   selectListId: string;
   name: string;
   description?: string | null;
+  boundSelectListId?: string | null;
   groups: SelectListGroup[];
 };
 
 export type SelectListMembership = {
   itemId: string;
-  groupId: string;
+  groupId?: string;
+  boundItemId?: string;
+  groupSetId?: string;
 };

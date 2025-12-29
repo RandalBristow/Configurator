@@ -18,6 +18,7 @@ export const groupIdParams = z.object({
 export const groupSetCreate = z.object({
   name: z.string().min(1),
   description: z.string().nullable().optional(),
+  boundSelectListId: z.string().uuid().nullable().optional(),
 });
 
 export const groupSetUpdate = groupSetCreate.partial();
@@ -30,4 +31,15 @@ export const groupUpdate = groupCreate.partial();
 
 export const membershipBatch = z.object({
   itemIds: z.array(z.string().uuid()).default([]),
+});
+
+export const membershipParams = z.object({
+  listId: z.string().uuid(),
+  groupId: z.string().uuid(),
+});
+
+export const boundMembershipParams = z.object({
+  listId: z.string().uuid(),
+  setId: z.string().uuid(),
+  boundItemId: z.string().uuid(),
 });
