@@ -7,6 +7,8 @@ type Options = {
   maxWidth?: number;
   collapsedWidth?: number;
   splitterSize?: number;
+  side?: "left" | "right";
+  enableCollapse?: boolean;
 };
 
 export function useResizableSidePanel({
@@ -16,6 +18,8 @@ export function useResizableSidePanel({
   maxWidth = 520,
   collapsedWidth = 48,
   splitterSize = 8,
+  side = "right",
+  enableCollapse = true,
 }: Options) {
   const widthKey = `${storageKeyBase}.panelWidth`;
   const collapsedKey = `${storageKeyBase}.panelCollapsed`;
@@ -30,6 +34,7 @@ export function useResizableSidePanel({
   });
 
   const [panelCollapsed, setPanelCollapsed] = useState(() => {
+    if (!enableCollapse) return false;
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(collapsedKey) === "true";
   });
@@ -41,16 +46,17 @@ export function useResizableSidePanel({
   }, [panelWidth, widthKey]);
 
   useEffect(() => {
+    if (!enableCollapse) return;
     window.localStorage.setItem(collapsedKey, String(panelCollapsed));
-  }, [panelCollapsed, collapsedKey]);
+  }, [panelCollapsed, collapsedKey, enableCollapse]);
 
   const panelSize = useMemo(
-    () => (panelCollapsed ? collapsedWidth : panelWidth),
+    () => (enableCollapse && panelCollapsed ? collapsedWidth : panelWidth),
     [panelCollapsed, collapsedWidth, panelWidth]
   );
 
   const onSplitterMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (panelCollapsed) return;
+    if (enableCollapse && panelCollapsed) return;
     e.preventDefault();
 
     dragRef.current = { startX: e.clientX, startWidth: panelWidth };
@@ -60,7 +66,8 @@ export function useResizableSidePanel({
     const onMove = (evt: MouseEvent) => {
       if (!dragRef.current) return;
       const delta = evt.clientX - dragRef.current.startX;
-      setPanelWidth(clamp(dragRef.current.startWidth - delta));
+      const signedDelta = side === "left" ? delta : -delta;
+      setPanelWidth(clamp(dragRef.current.startWidth + signedDelta));
     };
 
     const onUp = () => {

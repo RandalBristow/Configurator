@@ -1,28 +1,52 @@
-export function Header({
-  showInactive,
-  onToggleInactive,
-  apiBase,
-}: {
-  showInactive: boolean;
-  onToggleInactive: (val: boolean) => void;
+export type AppMode = "data" | "design" | "preview";
+
+type Props = {
+  mode: AppMode;
+  onChangeMode: (mode: AppMode) => void;
   apiBase: string;
-}) {
+};
+
+export function Header({
+  mode,
+  onChangeMode,
+  apiBase,
+}: Props) {
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <div className="brand">Configurator Admin</div>
-        <div className="muted small">Manage catalog, lists, and attributes</div>
+    <header className="app-topbar">
+      <div className="topbar-brand" aria-label="Company">
+        <div className="topbar-mark" aria-hidden="true" />
+        <div className="topbar-brand-text">
+          <div className="topbar-brand-name">Configurator</div>
+          <div className="topbar-brand-subtitle">Admin</div>
+        </div>
       </div>
-      <div className="header-right">
-        <label className="small flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => onToggleInactive(e.target.checked)}
-          />
-          Show inactive
-        </label>
-        <div className="muted small">API: {apiBase}</div>
+
+      <nav className="topbar-tabs" aria-label="Workspace mode">
+        <button
+          type="button"
+          className={`topbar-tab ${mode === "data" ? "active" : ""}`}
+          onClick={() => onChangeMode("data")}
+        >
+          Data
+        </button>
+        <button
+          type="button"
+          className={`topbar-tab ${mode === "design" ? "active" : ""}`}
+          onClick={() => onChangeMode("design")}
+        >
+          Design
+        </button>
+        <button
+          type="button"
+          className={`topbar-tab ${mode === "preview" ? "active" : ""}`}
+          onClick={() => onChangeMode("preview")}
+        >
+          Preview
+        </button>
+      </nav>
+
+      <div className="topbar-right">
+        <div className="topbar-meta">API: {apiBase}</div>
       </div>
     </header>
   );

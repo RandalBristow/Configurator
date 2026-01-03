@@ -5,3 +5,5 @@ export * from "./attributes";
 export * from "./optionLists";
 export * from "./selectListItems";
 export * from "./selectListGroups";
+export * from "./selectListProperties";
+export * from "./selectListItemProperties";

@@ -89,6 +89,7 @@ model SelectList {
   attributes  Attribute[]
   groupSets   SelectListGroupSet[]
   boundGroupSets SelectListGroupSet[] @relation("SelectListGroupSetBound")
+  properties  SelectListProperty[]
 }
 
 model SelectListItem {
@@ -115,6 +116,27 @@ enum SelectListPropertyType {
   number
   boolean
   datetime
+}
+
+enum LookupTableDataType {
+  string
+  number
+  boolean
+  datetime
+}
+
+model SelectListProperty {
+  id          String               @id @default(uuid())
+  selectListId String
+  key         String
+  dataType    SelectListPropertyType
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  selectList SelectList @relation(fields: [selectListId], references: [id], onDelete: Cascade)
+
+  @@unique([selectListId, key])
+  @@index([selectListId])
 }
 
 model SelectListItemProperty {
@@ -182,5 +204,45 @@ model SelectListBoundMembership {
 
   @@id([itemId, boundItemId, groupSetId])
   @@index([groupSetId, boundItemId])
+}
+
+model LookupTable {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  description String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  columns     LookupTableColumn[]
+  rows        LookupTableRow[]
+}
+
+model LookupTableColumn {
+  id        String            @id @default(uuid())
+  tableId   String
+  name      String
+  dataType  LookupTableDataType
+  sortOrder Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  table LookupTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, name])
+  @@index([tableId])
+}
+
+model LookupTableRow {
+  id        String   @id @default(uuid())
+  tableId   String
+  sortOrder Int      @default(0)
+  values    Json
+  rowHash   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  table LookupTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, rowHash])
+  @@index([tableId])
 }
         

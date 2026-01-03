@@ -5,3 +5,6 @@ export * from "./attributesService";
 export * from "./optionListsService";
 export * from "./selectListItemsService";
 export * from "./selectListGroupsService";
+export * from "./selectListPropertiesService";
+export * from "./selectListItemPropertiesService";
+export * from "./lookupTablesService";

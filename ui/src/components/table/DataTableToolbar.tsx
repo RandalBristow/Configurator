@@ -1,7 +1,9 @@
 import { Clipboard, Copy, Eraser, Trash2, Upload, RefreshCcw } from "lucide-react";
+import { ToolbarButton, ToolbarDivider, ToolbarFileButton } from "../ui/ToolbarButton";
 
 type Props = {
   selectedCount: number;
+  rowCount?: number;
   canReset: boolean;
   disabled?: boolean;
 
@@ -17,6 +19,7 @@ type Props = {
 
 export function DataTableToolbar({
   selectedCount,
+  rowCount,
   canReset,
   disabled,
   onImportClipboard,
@@ -28,75 +31,74 @@ export function DataTableToolbar({
 }: Props) {
   const hasSelection = selectedCount > 0;
   const allDisabled = Boolean(disabled);
+  const formattedRows = typeof rowCount === "number" ? rowCount.toLocaleString() : null;
+  const formattedSelected = selectedCount ? selectedCount.toLocaleString() : null;
 
   return (
     <div className="selection-bar">
       <div className="selection-bar__actions">
-        <button
-          className="icon-btn"
-          type="button"
+        <ToolbarButton
           title="Refresh table"
           onClick={onReset}
           disabled={!canReset || allDisabled}
-        >
-          <RefreshCcw size={16} />
-        </button>
+          icon={<RefreshCcw size={14} />}
+          label="Refresh"
+        />
 
-        <div className="selection-bar__divider" />
+        <ToolbarDivider />
 
-        <button
-          className="icon-btn"
-          type="button"
+        <ToolbarButton
           title="Import from clipboard"
           onClick={onImportClipboard}
           disabled={allDisabled}
-        >
-          <Clipboard size={16} />
-        </button>
+          icon={<Clipboard size={14} />}
+          label="Paste"
+        />
 
-        <label className="icon-btn" title="Import from file" style={allDisabled ? { pointerEvents: "none", opacity: 0.6 } : undefined}>
-          <Upload size={16} />
-          <input
-            type="file"
-            accept=".csv,text/plain"
-            onChange={onImportFile}
-            style={{ display: "none" }}
-          />
-        </label>
+        <ToolbarFileButton
+          title="Import from file"
+          disabled={allDisabled}
+          icon={<Upload size={14} />}
+          label="Import"
+          accept=".csv,text/plain"
+          onChange={onImportFile}
+        />
 
-        <div className="selection-bar__divider" />
+        <ToolbarDivider />
 
-        <button
-          className="icon-btn"
-          type="button"
+        <ToolbarButton
           title="Clear selection"
           onClick={onClearSelection}
           disabled={!hasSelection || allDisabled}
-        >
-          <Eraser size={16} />
-        </button>
+          icon={<Eraser size={14} />}
+          label="Clear"
+        />
 
-        <button
-          className="icon-btn"
-          type="button"
+        <ToolbarButton
           title="Copy selected rows"
           onClick={onCopySelected}
           disabled={!hasSelection || allDisabled}
-        >
-          <Copy size={16} />
-        </button>
+          icon={<Copy size={14} />}
+          label="Copy"
+        />
 
-        <button
-          className="icon-btn"
-          type="button"
+        <ToolbarButton
           title="Delete selected rows"
           onClick={onDeleteSelected}
           disabled={!hasSelection || allDisabled}
-        >
-          <Trash2 size={16} />
-        </button>
+          icon={<Trash2 size={14} />}
+          label="Delete"
+        />
       </div>
 
+      {formattedRows !== null && (
+        <div className="selection-bar__meta">
+          <span className="selection-bar__meta-item">Rows: {formattedRows}</span>
+          {formattedSelected !== null && (
+            <span className="selection-bar__meta-item">Selected: {formattedSelected}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

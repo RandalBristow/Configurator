@@ -1,25 +1,28 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Shell } from "./layout/Shell";
-import { Header } from "./layout/Header";
+import { Header, type AppMode } from "./layout/Header";
+import { MenuBar, type DataArea } from "./layout/MenuBar";
 import { Footer } from "./layout/Footer";
-import { NavButton } from "./components/NavButton";
-import { categoriesApi, subcategoriesApi, optionsApi, attributesApi, selectListsApi } from "./api/entities";
-import { CategoriesSection } from "./features/catalog/CategoriesSection";
-import { SubcategoriesSection } from "./features/catalog/SubcategoriesSection";
-import { OptionsSection } from "./features/catalog/OptionsSection";
-import { AttributesSection } from "./features/catalog/AttributesSection";
+import { TabToolbarProvider, useTabToolbar } from "./layout/TabToolbarContext";
+import { useResizableSidePanel } from "./hooks/useResizableSidePanel";
+import { lookupTablesApi, selectListsApi } from "./api/entities";
+import { LookupTablesSection } from "./features/lookup-tables/LookupTablesSection";
 import { SelectListItemsSection } from "./features/lists/SelectListItemsSection";
-
-type Section =
-  | "categories"
-  | "subcategories"
-  | "options"
-  | "attributes"
-  | "selectListItems";
+import { SidePanelFilter } from "./components/nav/SidePanelFilter";
 
 export default function App() {
+  return (
+    <TabToolbarProvider>
+      <AppInner />
+    </TabToolbarProvider>
+  );
+}
+
+function AppInner() {
   const SHOW_INACTIVE_KEY = "configurator.showInactive";
+  const [mode, setMode] = useState<AppMode>("data");
+  const [dataArea, setDataArea] = useState<DataArea>("selectLists");
   const [showInactive, setShowInactive] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(SHOW_INACTIVE_KEY);
@@ -37,198 +40,197 @@ export default function App() {
       // ignore
     }
   }, [showInactive]);
-  const [activeSection, setActiveSection] = useState<Section>("categories");
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
-  const [selectedSubcategory, setSelectedSubcategory] = useState<string | undefined>();
-  const [selectedOption, setSelectedOption] = useState<string | undefined>();
-  const [selectedSelectList, setSelectedSelectList] = useState<string | undefined>();
 
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
-  const [listsCollapsed, setListsCollapsed] = useState(false);
+  const { leftToolbar, rightToolbar } = useTabToolbar();
+
+  const navPanel = useResizableSidePanel({
+    storageKeyBase: "app.sidenav",
+    side: "left",
+    defaultWidth: 280,
+    minWidth: 240,
+    maxWidth: 460,
+    collapsedWidth: 220,
+    splitterSize: 8,
+  });
+
   const [creatingNewList, setCreatingNewList] = useState(false);
+  const [selectedSelectList, setSelectedSelectList] = useState<string | undefined>();
+  const [selectListFilter, setSelectListFilter] = useState("");
 
-  // Lightweight queries to drive nav counts (shared cache with section queries)
-  const categories = useQuery({
-    queryKey: ["categories", "all"],
-    queryFn: () => categoriesApi.list(true),
-  });
-
-  const subcategories = useQuery({
-    queryKey: ["subcategories", selectedCategory, "all"],
-    queryFn: () => subcategoriesApi.list(selectedCategory, true),
-    enabled: true,
-  });
-
-  const options = useQuery({
-    queryKey: ["options", selectedSubcategory, showInactive],
-    queryFn: () => optionsApi.list(selectedSubcategory, showInactive),
-    enabled: !!selectedSubcategory,
-  });
-
-  const attributes = useQuery({
-    queryKey: ["attributes", selectedOption, showInactive],
-    queryFn: () => attributesApi.list(selectedOption, showInactive),
-    enabled: !!selectedOption,
-  });
+  const [creatingNewLookupTable, setCreatingNewLookupTable] = useState(false);
+  const [selectedLookupTable, setSelectedLookupTable] = useState<string | undefined>();
+  const [lookupTableFilter, setLookupTableFilter] = useState("");
 
   const optionLists = useQuery({
     queryKey: ["select-lists", showInactive],
     queryFn: () => selectListsApi.list(),
+    enabled: mode === "data",
   });
 
-  // Auto-select first list when available so the list items view is ready (unless we're in "new list" mode).
+  const lookupTables = useQuery({
+    queryKey: ["lookup-tables"],
+    queryFn: () => lookupTablesApi.list(),
+    enabled: mode === "data",
+  });
+
   useEffect(() => {
-    console.debug("[App] selectedSelectList", selectedSelectList, "creatingNewList", creatingNewList);
-    if (!creatingNewList && !selectedSelectList && (optionLists.data?.length ?? 0) > 0) {
-      setSelectedSelectList(optionLists.data![0].id);
-    }
-  }, [optionLists.data, selectedSelectList, creatingNewList]);
+    if (mode !== "data") return;
+    if (dataArea !== "selectLists") return;
+    if (creatingNewList) return;
+    if (selectedSelectList) return;
+    if ((optionLists.data?.length ?? 0) > 0) setSelectedSelectList(optionLists.data![0].id);
+  }, [mode, dataArea, creatingNewList, selectedSelectList, optionLists.data]);
 
-  const resetTree = () => {
-    setSelectedCategory(undefined);
-    setSelectedSubcategory(undefined);
-    setSelectedOption(undefined);
-  };
-
-  const resetSubAndBelow = () => {
-    setSelectedSubcategory(undefined);
-    setSelectedOption(undefined);
-  };
-
-  const resetOption = () => {
-    setSelectedOption(undefined);
-  };
+  useEffect(() => {
+    if (mode !== "data") return;
+    if (dataArea !== "lookupTables") return;
+    if (creatingNewLookupTable) return;
+    if (selectedLookupTable) return;
+    if ((lookupTables.data?.length ?? 0) > 0) setSelectedLookupTable(lookupTables.data![0].id);
+  }, [mode, dataArea, creatingNewLookupTable, selectedLookupTable, lookupTables.data]);
 
   return (
     <Shell
-      header={
-        <Header showInactive={showInactive} onToggleInactive={setShowInactive} apiBase={apiBase} />
+      header={<Header mode={mode} onChangeMode={setMode} apiBase={apiBase} />}
+      menubar={
+        <MenuBar
+          mode={mode}
+          dataArea={dataArea}
+          onChangeDataArea={(area) => {
+            setDataArea(area);
+          }}
+          showInactive={showInactive}
+          onToggleInactive={setShowInactive}
+          leftToolbar={leftToolbar}
+          rightToolbar={rightToolbar}
+        />
       }
+      navCollapsed={navPanel.panelCollapsed}
+      navSize={navPanel.panelSize}
+      navSplitterSize={navPanel.splitterSize}
+      onNavSplitterMouseDown={navPanel.onSplitterMouseDown}
       nav={
         <nav className="side-nav">
-          <div className="nav-section">
-            <div className="nav-label">Catalog</div>
-            <NavButton
-              label="Categories"
-              count={categories.data?.length}
-              active={activeSection === "categories"}
-              onClick={() => setActiveSection("categories")}
-            />
-            <NavButton
-              label="Subcategories"
-              count={subcategories.data?.length}
-              active={activeSection === "subcategories"}
-              onClick={() => setActiveSection("subcategories")}
-            />
-            <NavButton
-              label="Options"
-              count={options.data?.length}
-              disabled={!selectedSubcategory}
-              active={activeSection === "options"}
-              onClick={() => setActiveSection("options")}
-            />
-            <NavButton
-              label="Attributes"
-              count={attributes.data?.length}
-              disabled={!selectedOption}
-              active={activeSection === "attributes"}
-              onClick={() => setActiveSection("attributes")}
-            />
-          </div>
-          <div className="nav-section">
-            <div className="nav-group">
-              <div className="nav-parent-header">
-                <button
-                  className={`nav-link parent ${activeSection === "selectListItems" ? "active" : ""}`}
-                  type="button"
-                  onClick={() => setListsCollapsed((v) => !v)}
-                >
-                  <span className="nav-chevron" style={{ fontSize: 16 }}>
-                    {listsCollapsed ? "▸" : "▾"}
-                  </span>
-                  <span>SELECT LISTS</span>
+          {mode !== "data" && (
+            <div className="nav-section">
+              <div className="nav-label">{mode === "design" ? "Design" : "Preview"}</div>
+              <button className="nav-link active" type="button">
+                <span>{mode === "design" ? "Form Designer" : "Interview Preview"}</span>
+                <span className="nav-badge">Soon</span>
+              </button>
+              {mode === "design" && (
+                <button className="nav-link" type="button" disabled>
+                  <span>Theme Editor</span>
+                  <span className="nav-badge">Soon</span>
                 </button>
-                <button
-                  className="nav-badge nav-add"
-                  type="button"
-                  title="Add select list"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCreatingNewList(true);
-                    setSelectedSelectList(undefined);
-                    setActiveSection("selectListItems");
-                    setListsCollapsed(false);
-                  }}
-                >
-                  +
-                </button>
-              </div>
-              {!listsCollapsed && (
-                <div className="nav-children">
-                  {(optionLists.data ?? []).map((l) => (
-                    <button
-                      key={l.id}
-                      className={`nav-link child ${selectedSelectList === l.id ? "active" : ""}`}
-                      onClick={() => {
-                        setCreatingNewList(false);
-                        setSelectedSelectList(l.id);
-                        setActiveSection("selectListItems");
-                      }}
-                    >
-                      <span>{l.name}</span>
-                    </button>
-                  ))}
-                  {!(optionLists.data ?? []).length && (
-                    <button className="nav-link child" disabled>
-                      <span>No lists yet</span>
-                    </button>
-                  )}
-                </div>
               )}
             </div>
-          </div>
+          )}
+
+          {mode === "data" && dataArea === "selectLists" && (
+            <div className="nav-section">
+              <div className="sidepanel-top">
+                <SidePanelFilter
+                  value={selectListFilter}
+                  onChange={setSelectListFilter}
+                  placeholder="Filter select lists"
+                />
+                <div className="sidepanel-top__divider" role="separator" aria-orientation="horizontal" />
+              </div>
+              <div className="nav-group">
+                {(optionLists.data ?? [])
+                  .filter((l) =>
+                    selectListFilter.trim()
+                      ? l.name.toLowerCase().includes(selectListFilter.trim().toLowerCase())
+                      : true
+                  )
+                  .map((l) => (
+                  <button
+                    key={l.id}
+                    className={`nav-item ${selectedSelectList === l.id ? "active" : ""}`}
+                    title={l.name}
+                    onClick={() => {
+                      setCreatingNewList(false);
+                      setSelectedSelectList(l.id);
+                    }}
+                  >
+                    <span>{l.name}</span>
+                  </button>
+                ))}
+                {!(optionLists.data ?? []).length && (
+                  <button className="nav-item" disabled>
+                    <span>No lists yet</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode === "data" && dataArea === "lookupTables" && (
+            <div className="nav-section">
+              <div className="sidepanel-top">
+                <SidePanelFilter
+                  value={lookupTableFilter}
+                  onChange={setLookupTableFilter}
+                  placeholder="Filter lookup tables"
+                />
+                <div className="sidepanel-top__divider" role="separator" aria-orientation="horizontal" />
+              </div>
+              <div className="nav-group">
+                {(lookupTables.data ?? [])
+                  .filter((t) =>
+                    lookupTableFilter.trim()
+                      ? t.name.toLowerCase().includes(lookupTableFilter.trim().toLowerCase())
+                      : true
+                  )
+                  .map((t) => (
+                  <button
+                    key={t.id}
+                    className={`nav-item ${selectedLookupTable === t.id ? "active" : ""}`}
+                    title={t.name}
+                    onClick={() => {
+                      setCreatingNewLookupTable(false);
+                      setSelectedLookupTable(t.id);
+                    }}
+                  >
+                    <span>{t.name}</span>
+                  </button>
+                ))}
+                {!(lookupTables.data ?? []).length && (
+                  <button className="nav-item" disabled>
+                    <span>No tables yet</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode === "data" && dataArea === "ranges" && (
+            <div className="nav-section">
+              <div className="nav-label">Ranges</div>
+              <button className="nav-link" type="button" disabled>
+                <span>Coming soon</span>
+                <span className="nav-badge">Soon</span>
+              </button>
+            </div>
+          )}
         </nav>
       }
       footer={<Footer />}
     >
-      {activeSection === "categories" && (
-        <CategoriesSection
-          selectedCategory={selectedCategory}
-          onSelect={(id) => {
-            setSelectedCategory(id);
-            resetSubAndBelow();
-          }}
-          onResetTree={resetTree}
-        />
+      {mode !== "data" && (
+        <div className="card">
+          <h2>{mode === "design" ? "Design" : "Preview"}</h2>
+          <div className="muted">
+            {mode === "design"
+              ? "Form designer and theme editor are coming next."
+              : "Interview preview is coming next."}
+          </div>
+        </div>
       )}
 
-      {activeSection === "subcategories" && (
-        <SubcategoriesSection
-          categoryId={selectedCategory}
-          selectedSubcategory={selectedSubcategory}
-          onSelect={(id) => {
-            setSelectedSubcategory(id);
-            resetOption();
-          }}
-          onResetBelow={resetSubAndBelow}
-        />
-      )}
-
-      {activeSection === "options" && (
-        <OptionsSection
-          showInactive={showInactive}
-          subcategoryId={selectedSubcategory}
-          selectedOption={selectedOption}
-          onSelect={(id) => setSelectedOption(id)}
-          onResetBelow={resetOption}
-        />
-      )}
-
-      {activeSection === "attributes" && (
-        <AttributesSection showInactive={showInactive} optionId={selectedOption} />
-      )}
-
-      {activeSection === "selectListItems" && (
+      {mode === "data" && dataArea === "selectLists" && (
         <SelectListItemsSection
           showInactive={showInactive}
           selectListId={selectedSelectList}
@@ -237,6 +239,23 @@ export default function App() {
             setSelectedSelectList(id);
           }}
         />
+      )}
+
+      {mode === "data" && dataArea === "lookupTables" && (
+        <LookupTablesSection
+          tableId={selectedLookupTable}
+          onSelectTable={(id) => {
+            setCreatingNewLookupTable(!id);
+            setSelectedLookupTable(id);
+          }}
+        />
+      )}
+
+      {mode === "data" && dataArea === "ranges" && (
+        <div className="card">
+          <h2>Ranges</h2>
+          <div className="muted">Ranges are coming next.</div>
+        </div>
       )}
     </Shell>
   );

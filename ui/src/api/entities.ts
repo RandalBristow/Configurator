@@ -2,11 +2,16 @@ import { api } from "./client";
 import type {
   Attribute,
   Category,
+  LookupTable,
+  LookupTableColumn,
+  LookupTableRow,
   Option,
   SelectList,
   SelectListGroupSet,
   SelectListItem,
+  SelectListItemProperty,
   SelectListMembership,
+  SelectListProperty,
   Subcategory,
 } from "../types/domain";
 
@@ -107,4 +112,65 @@ export const selectListGroupsApi = {
     api.del(`/select-list-groups/${selectListId}/group-sets/${setId}`),
   removeGroup: (selectListId: string, setId: string, groupId: string) =>
     api.del(`/select-list-groups/${selectListId}/group-sets/${setId}/groups/${groupId}`),
+};
+
+export const selectListPropertiesApi = {
+  list: (selectListId: string) =>
+    api.get<SelectListProperty[]>(`/select-list-properties/${selectListId}/properties`),
+  create: (selectListId: string, data: { key: string; dataType: SelectListProperty["dataType"] }) =>
+    api.post<SelectListProperty>(`/select-list-properties/${selectListId}/properties`, data),
+  update: (
+    selectListId: string,
+    propertyId: string,
+    data: Partial<Pick<SelectListProperty, "key" | "dataType">>,
+  ) => api.put<SelectListProperty>(`/select-list-properties/${selectListId}/properties/${propertyId}`, data),
+  remove: (selectListId: string, propertyId: string) =>
+    api.del<void>(`/select-list-properties/${selectListId}/properties/${propertyId}`),
+};
+
+export const selectListItemPropertiesApi = {
+  list: (selectListId: string) =>
+    api.get<SelectListItemProperty[]>(`/select-list-item-properties/${selectListId}`),
+  bulkSet: (
+    selectListId: string,
+    updates: Array<{
+      itemId: string;
+      key: string;
+      dataType: SelectListProperty["dataType"];
+      value: string | null;
+    }>,
+  ) => api.post<void>(`/select-list-item-properties/${selectListId}/bulk`, { updates }),
+};
+
+export const lookupTablesApi = {
+  list: () => api.get<LookupTable[]>("/lookup-tables"),
+  create: (data: Partial<LookupTable>) => api.post<LookupTable>("/lookup-tables", data),
+  update: (tableId: string, data: Partial<LookupTable>) =>
+    api.put<LookupTable>(`/lookup-tables/${tableId}`, data),
+  remove: (tableId: string) => api.del<LookupTable>(`/lookup-tables/${tableId}`),
+
+  listColumns: (tableId: string) => api.get<LookupTableColumn[]>(`/lookup-tables/${tableId}/columns`),
+  createColumn: (tableId: string, data: Partial<LookupTableColumn>) =>
+    api.post<LookupTableColumn>(`/lookup-tables/${tableId}/columns`, data),
+  updateColumn: (tableId: string, columnId: string, data: Partial<LookupTableColumn>) =>
+    api.put<LookupTableColumn>(`/lookup-tables/${tableId}/columns/${columnId}`, data),
+  removeColumn: (tableId: string, columnId: string) =>
+    api.del<void>(`/lookup-tables/${tableId}/columns/${columnId}`),
+
+  listRows: (tableId: string) => api.get<LookupTableRow[]>(`/lookup-tables/${tableId}/rows`),
+  createRow: (tableId: string, data: Partial<LookupTableRow>) =>
+    api.post<LookupTableRow>(`/lookup-tables/${tableId}/rows`, data),
+  createRowsBulk: (
+    tableId: string,
+    rows: Array<{ values: LookupTableRow["values"]; sortOrder?: number }>,
+  ) =>
+    api.post<{
+      inserted: number;
+      skippedBlank: number;
+      skippedDuplicateInRequest: number;
+      skippedExisting: number;
+    }>(`/lookup-tables/${tableId}/rows/bulk`, { rows }),
+  updateRow: (tableId: string, rowId: string, data: Partial<LookupTableRow>) =>
+    api.put<LookupTableRow>(`/lookup-tables/${tableId}/rows/${rowId}`, data),
+  removeRow: (tableId: string, rowId: string) => api.del<void>(`/lookup-tables/${tableId}/rows/${rowId}`),
 };

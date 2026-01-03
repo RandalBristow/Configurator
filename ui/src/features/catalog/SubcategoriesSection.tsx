@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { categoriesApi, subcategoriesApi } from "../../api/entities";
-import { DataTable, type DataTableColumn } from "../../components/table/_DataTable";
-import type { Subcategory } from "../../types/domain";
 import { toast } from "sonner";
+import { subcategoriesApi } from "../../api/entities";
+import { List } from "../../components/List";
+import type { Subcategory } from "../../types/domain";
 
 type Props = {
   categoryId?: string;
@@ -18,27 +19,20 @@ export function SubcategoriesSection({
   onResetBelow,
 }: Props) {
   const qc = useQueryClient();
-  const categoriesList = useQuery({
-    queryKey: ["categories", "all"],
-    queryFn: () => categoriesApi.list(true),
-  });
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+
   const subcategories = useQuery({
     queryKey: ["subcategories", categoryId, "all"],
     queryFn: () => subcategoriesApi.list(categoryId, true),
-    enabled: true,
+    enabled: !!categoryId,
   });
 
   const createSubcategory = useMutation({
     mutationFn: (data: Partial<Subcategory>) => subcategoriesApi.create(data),
-    onSuccess: (created) => {
-      // Update the cache for the current category view immediately
-      if (categoryId) {
-        qc.setQueryData<Subcategory[]>(["subcategories", categoryId, "all"], (prev) =>
-          prev ? [...prev, created] : [created],
-        );
-      }
-      // Invalidate all subcategory queries to keep other views in sync
-      qc.invalidateQueries({ queryKey: ["subcategories"], exact: false });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
       toast.success("Subcategory added");
     },
     onError: (err) => toast.error(`Add failed: ${String(err)}`),
@@ -75,179 +69,96 @@ export function SubcategoriesSection({
     onError: (err) => toast.error(`Activate failed: ${String(err)}`),
   });
 
-  const categoriesOptions = categoriesList.data ?? [];
-
-  const columns: DataTableColumn<Subcategory>[] = [
-    {
-      key: "categoryId",
-      header: "*Category",
-      width: 200,
-      render: (row) => categoriesOptions.find((c) => c.id === row.categoryId)?.name ?? "Unknown",
-      exportValue: (row) => categoriesOptions.find((c) => c.id === row.categoryId)?.name ?? "",
-      input: (value, onChange) => (
-        <select
-          className="table-input"
-          value={value ?? categoryId ?? ""}
-          onChange={(e) => onChange(e.target.value || undefined)}
-        >
-          <option value="">Select category</option>
-          {categoriesOptions.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-      ),
-    },
-    {
-      key: "name",
-      header: "*Name",
-      width: 320,
-      input: (value, onChange) => (
-        <input
-          className="table-input"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Name"
-        />
-      ),
-    },
-    {
-      key: "description",
-      header: "*Description",
-      input: (value, onChange) => (
-        <input
-          className="table-input"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Description"
-        />
-      ),
-      render: (row) => row.description ?? "",
-    },
-    {
-      key: "sortOrder",
-      header: "*Order",
-      width: 125,
-      input: (value, onChange) => (
-        <input
-          className="table-input"
-          type="number"
-          value={value ?? 0}
-          onChange={(e) => onChange(Number(e.target.value))}
-          placeholder="0"
-        />
-      ),
-      render: (row) => row.sortOrder ?? 0,
-    },
-    {
-      key: "isActive",
-      header: "Status",
-      width: 125,
-      filterLabel: (val) => (val ? "Active" : "Inactive"),
-      render: (row) => (row.isActive ? "Active" : "Inactive"),
-    },
-  ];
-
-  const importSubcategories = async (records: Partial<Subcategory>[]) => {
-    if (!categoriesOptions.length) throw new Error("Categories not loaded");
-
-    const normalized = records
-      .map((r) => {
-        const entries = Object.entries(r).reduce<Record<string, any>>((acc, [k, v]) => {
-          acc[k.toLowerCase()] = v;
-          return acc;
-        }, {});
-        const name = (entries.name ?? entries[""] ?? "").toString().trim();
-        if (!name) return null;
-        const description = (entries.description ?? entries.desc ?? "").toString().trim() || undefined;
-        const sortRaw = entries.sort ?? entries.sortorder ?? entries.order ?? entries[""] ?? 0;
-        const sortOrder = Number.isFinite(Number(sortRaw)) ? Number(sortRaw) : 0;
-        const statusVal = (entries.status ?? entries.isactive ?? "").toString().toLowerCase();
-        const isActive = statusVal
-          ? !(statusVal.startsWith("in") || statusVal.startsWith("f") || statusVal === "0")
-          : true;
-        const catName = (entries.category ?? entries.categoryname ?? entries.cat ?? "").toString().toLowerCase();
-        let catId = entries.categoryid ?? entries.category_id;
-        if (!catId && catName) {
-          const match = categoriesOptions.find((c) => c.name.toLowerCase() === catName);
-          catId = match?.id;
-        }
-        if (!catId) return null;
-        return { name, description, sortOrder, isActive, categoryId: String(catId) };
-      })
-      .filter(Boolean) as Partial<Subcategory>[];
-
-    if (!normalized.length) throw new Error("No valid rows to import");
-
-    const existing =
-      subcategories.data ??
-      (categoryId ? await subcategoriesApi.list(categoryId, true) : await subcategoriesApi.list(undefined, true));
-    const seen = new Set(existing.map((s) => `${s.categoryId.toLowerCase()}::${s.name.toLowerCase()}`));
-    const deduped = normalized.filter((item) => {
-      const key = `${item.categoryId?.toLowerCase() ?? ""}::${item.name?.toLowerCase() ?? ""}`;
-      if (!item.categoryId || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    if (!deduped.length) throw new Error("All rows are duplicates or missing category");
-
-    let success = 0;
-    let failed = 0;
-    for (const payload of deduped) {
-      try {
-        await subcategoriesApi.create(payload);
-        success += 1;
-      } catch (err) {
-        failed += 1;
-        console.error("Import subcategory failed", payload, err);
-      }
-    }
-    await qc.invalidateQueries({ queryKey: ["subcategories"] });
-    if (success) toast.success(`Imported ${success} subcategories${failed ? ` (${failed} failed)` : ""}`);
-    if (!success) throw new Error("No subcategories were imported");
-  };
-
   return (
     <div className="card">
-      <DataTable<Subcategory>
-        title="Subcategories"
-        badge={subcategories.data?.length ?? 0}
-        columns={columns}
-        rows={subcategories.data ?? []}
+      <div className="card-head">
+        <h2>Subcategories</h2>
+        <span className="tag">{subcategories.data?.length ?? 0}</span>
+      </div>
+
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!categoryId) return;
+          if (!name.trim() || !description.trim()) return;
+          createSubcategory.mutate({
+            categoryId,
+            name: name.trim(),
+            description: description.trim(),
+            sortOrder: Number(sortOrder) || 0,
+            isActive: true,
+          });
+          setName("");
+          setDescription("");
+          setSortOrder(0);
+        }}
+      >
+        <input
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          disabled={!categoryId || createSubcategory.isPending}
+        />
+        <input
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          required
+          disabled={!categoryId || createSubcategory.isPending}
+        />
+        <input
+          type="number"
+          placeholder="Order"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(Number(e.target.value))}
+          disabled={!categoryId || createSubcategory.isPending}
+        />
+        <button className="btn" type="submit" disabled={!categoryId || createSubcategory.isPending}>
+          Add Subcategory
+        </button>
+      </form>
+
+      <List<Subcategory>
+        items={subcategories.data ?? []}
         selectedId={selectedSubcategory}
-        getRowId={(row) => row.id}
         onSelect={(id) => onSelect(id)}
-        onSave={(id, changes) => editSubcategory.mutate({ id, payload: changes })}
-        onDelete={(id) => deleteSubcategory.mutate(id)}
-        getDeleteConfirm={async (row) => {
-          const summary = await subcategoriesApi.deleteSummary(row.id);
-          const attrs = summary.attributes ? ` and ${summary.attributes} attributes` : "";
-          return {
-            title: `Delete subcategory "${row.name}"?`,
-            description: `This will permanently delete ${summary.options} options${attrs}. This cannot be undone.`,
-          };
+        onDelete={(id) => {
+          if (!confirm("Delete subcategory? This cannot be undone.")) return;
+          deleteSubcategory.mutate(id);
         }}
-        onCreate={(data) => createSubcategory.mutate({ ...data, categoryId: data.categoryId ?? categoryId })}
-        getIsActive={(row) => row.isActive}
-        onToggleActive={(id, next) =>
-          next ? activateSubcategory.mutate(id) : editSubcategory.mutate({ id, payload: { isActive: false } })
-        }
-        onImport={importSubcategories}
-        isLoading={subcategories.isLoading || categoriesList.isLoading}
-        error={subcategories.error ? String(subcategories.error) : undefined}
-        newRowDefaults={{ categoryId, sortOrder: 0, isActive: true }}
-        validateCreate={(draft) => {
-          if (!draft.categoryId) return "Category is required.";
-          if (!draft.name || !String(draft.name).trim()) return "Name is required.";
-          if (!draft.description || !String(draft.description).trim()) return "Description is required.";
-          if (draft.sortOrder === undefined || draft.sortOrder === null || Number.isNaN(Number(draft.sortOrder))) {
-            return "Order is required.";
+        onActivate={(id) => activateSubcategory.mutate(id)}
+        onEdit={(sub) => {
+          const nextName = prompt("Name", sub.name);
+          if (!nextName) return;
+          const nextDescription = prompt("Description", sub.description ?? "");
+          if (nextDescription === null) return;
+          const nextOrderRaw = prompt("Order", String(sub.sortOrder ?? 0));
+          if (nextOrderRaw === null) return;
+          const nextOrder = Number(nextOrderRaw);
+          if (Number.isNaN(nextOrder)) {
+            toast.error("Order must be a number");
+            return;
           }
-          return null;
+          editSubcategory.mutate({
+            id: sub.id,
+            payload: { name: nextName, description: nextDescription, sortOrder: nextOrder },
+          });
         }}
+        render={(sub) => (
+          <>
+            <div>
+              <div>{sub.name}</div>
+              {sub.description && <div className="muted">{sub.description}</div>}
+              <div className="muted small">Order: {sub.sortOrder ?? 0}</div>
+            </div>
+            {!sub.isActive && <span className="tag">inactive</span>}
+          </>
+        )}
       />
+
+      {!categoryId && <div className="muted">Select a category to manage subcategories.</div>}
       {subcategories.error && <div className="error">{String(subcategories.error)}</div>}
     </div>
   );

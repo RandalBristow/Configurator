@@ -1,0 +1,44 @@
+:root {
+  /* Top bar / brand */
+  --color-nav-bg: #e06b2b;
+  --color-nav-text: #fffaf5;
+  --color-nav-text-muted: rgba(255, 250, 245, 0.85);
+  --color-nav-tab-active-bg: rgba(255, 255, 255, 0.18);
+  --color-nav-tab-hover-bg: rgba(255, 255, 255, 0.12);
+
+  /* Side navigation */
+  --color-sidenav-bg: #ffffff;
+  --color-sidenav-text: #0d1c3b;
+  --color-sidenav-muted: #4b6485;
+  --color-sidenav-hover-bg: rgba(0, 102, 179, 0.06);
+  --color-sidenav-active-bg: rgba(0, 102, 179, 0.12);
+  --color-sidenav-active-border: rgba(0, 102, 179, 0.35);
+
+  --color-bg: #f3f6fb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8faff;
+  --color-border: #d3e2f5;
+
+  --color-text: #0d1c3b;
+  --color-muted: #4b6485;
+
+  --color-accent: #0066b3;
+  --color-accent-strong: #007adf;
+  --color-danger: #b91c1c;
+  --color-accent-red: #d31145;
+
+  --color-indicator-new: #15803d;
+  --color-indicator-edited: #a16207;
+
+  --shadow-1: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 8px 24px rgba(0, 33, 71, 0.06);
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* Planned theme support: wire a toggle later (e.g., App.tsx sets data-theme). */
+[data-theme="dark"] {
+  /* Placeholder: dark tokens will be defined when enabling the toggle. */
+}

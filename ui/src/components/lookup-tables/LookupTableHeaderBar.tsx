@@ -1,16 +1,16 @@
-import type { SelectList } from "../../types/domain";
+import type { LookupTable } from "../../types/domain";
 import { SaveIcon, ListPlus, ListFilter, Trash, X } from "lucide-react";
 import { WorkspaceHeader } from "../workspace/WorkspaceHeader";
 import { WorkspaceToolbar } from "../workspace/WorkspaceToolbar";
 
 type Props = {
-  currentListId?: string;
-  lists: SelectList[];
+  currentTableId?: string;
+  tables: LookupTable[];
   search: string;
   isCreatingNew?: boolean;
   controlsDisabled?: boolean;
 
-  onChangeList: (id?: string) => void;
+  onChangeTable: (id?: string) => void;
   onSearchChange: (value: string) => void;
 
   onNew: () => void;
@@ -22,13 +22,13 @@ type Props = {
   deleteDisabled?: boolean;
 };
 
-export function SelectListHeaderBar({
-  currentListId,
-  lists,
+export function LookupTableHeaderBar({
+  currentTableId,
+  tables,
   search,
   isCreatingNew,
   controlsDisabled,
-  onChangeList,
+  onChangeTable,
   onSearchChange,
   onNew,
   onSave,
@@ -40,14 +40,14 @@ export function SelectListHeaderBar({
   return (
     <>
       <WorkspaceHeader
-        title="Select Lists"
-        subtitle="Data for ComboBox selections"
+        title="Lookup Tables"
+        subtitle="Global tabular datasets"
         right={
           <>
             <button
               className="icon-btn"
               type="button"
-              title={isCreatingNew ? "Cancel new select list" : "New select list"}
+              title={isCreatingNew ? "Cancel new lookup table" : "New lookup table"}
               onClick={isCreatingNew ? onCancel : onNew}
               disabled={controlsDisabled && !isCreatingNew}
             >
@@ -65,7 +65,7 @@ export function SelectListHeaderBar({
             <button
               className="icon-btn"
               type="button"
-              title="Delete current select list"
+              title="Delete current lookup table"
               onClick={onDelete}
               disabled={deleteDisabled || controlsDisabled}
             >
@@ -81,20 +81,20 @@ export function SelectListHeaderBar({
             <select
               className="table-input"
               style={{ width: 260 }}
-              value={currentListId ?? ""}
-              onChange={(e) => onChangeList(e.target.value || undefined)}
+              value={currentTableId ?? ""}
+              onChange={(e) => onChangeTable(e.target.value || undefined)}
               disabled={controlsDisabled}
             >
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
+              {tables.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
                 </option>
               ))}
             </select>
 
             <input
               className="table-input"
-              placeholder="Search lists"
+              placeholder="Search tables"
               style={{ width: 260 }}
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
