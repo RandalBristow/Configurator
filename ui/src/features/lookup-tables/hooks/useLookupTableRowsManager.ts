@@ -9,6 +9,8 @@ type CellValue = string | number | boolean | null;
 
 type LookupRowView = { id: string } & Record<string, any>;
 
+const lookupTableSortCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
 const viewKeyForColumnId = (columnId: string) => `col:${columnId}`;
 
 const coerceValue = (dataType: LookupTableDataType, raw: any): CellValue => {
@@ -58,6 +60,33 @@ const isBlank = (values: Record<string, CellValue>) => {
   const keys = Object.keys(values);
   if (!keys.length) return true;
   return keys.every((k) => values[k] === null || values[k] === undefined);
+};
+
+const compareLookupTableCell = (
+  dataType: LookupTableDataType,
+  av: CellValue,
+  bv: CellValue,
+): number => {
+  if (av === bv) return 0;
+  if (av === null || av === undefined) return 1;
+  if (bv === null || bv === undefined) return -1;
+
+  if (dataType === "number") {
+    const an = typeof av === "number" ? av : Number(String(av));
+    const bn = typeof bv === "number" ? bv : Number(String(bv));
+    if (!Number.isFinite(an) && !Number.isFinite(bn)) return 0;
+    if (!Number.isFinite(an)) return 1;
+    if (!Number.isFinite(bn)) return -1;
+    return an - bn;
+  }
+
+  if (dataType === "boolean") {
+    const ab = typeof av === "boolean" ? av : String(av).trim().toLowerCase() === "true";
+    const bb = typeof bv === "boolean" ? bv : String(bv).trim().toLowerCase() === "true";
+    return Number(ab) - Number(bb);
+  }
+
+  return lookupTableSortCollator.compare(String(av), String(bv));
 };
 
 type UseLookupTableRowsManagerArgs = {
@@ -162,8 +191,42 @@ export function useLookupTableRowsManager({
   const visibleRowModels = useMemo(() => {
     const base = rows.filter((r) => !pendingDeletes.has(r.id));
     const pending = pendingAdds.filter((r) => !pendingDeletes.has(r.id));
-    return [...base, ...pending];
-  }, [rows, pendingAdds, pendingDeletes]);
+
+    if (!columns.length || base.length <= 1) return [...base, ...pending];
+
+    const columnsByOrder = columns
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    const keyCache = new Map<string, CellValue[]>();
+    const colIds = columnsByOrder.map((c) => c.id);
+    const colTypeById = new Map(columnsByOrder.map((c) => [c.id, c.dataType]));
+
+    const sortKeyForRow = (row: LookupTableRow) => {
+      const cached = keyCache.get(row.id);
+      if (cached) return cached;
+      const raw = (row.values ?? {}) as Record<string, any>;
+      const key = colIds.map((colId) => {
+        const dataType = colTypeById.get(colId)!;
+        return coerceValue(dataType, raw[colId]);
+      });
+      keyCache.set(row.id, key);
+      return key;
+    };
+
+    const sortedBase = base.slice().sort((a, b) => {
+      const aKey = sortKeyForRow(a);
+      const bKey = sortKeyForRow(b);
+      for (let i = 0; i < colIds.length; i++) {
+        const colId = colIds[i];
+        const dataType = colTypeById.get(colId)!;
+        const cmp = compareLookupTableCell(dataType, aKey[i], bKey[i]);
+        if (cmp !== 0) return cmp;
+      }
+      return a.id.localeCompare(b.id);
+    });
+
+    return [...sortedBase, ...pending];
+  }, [rows, pendingAdds, pendingDeletes, columns]);
 
   const rowViews = useMemo<LookupRowView[]>(() => {
     return visibleRowModels.map((row) => {
@@ -209,7 +272,7 @@ export function useLookupTableRowsManager({
     return undefined;
   };
 
-  const finalizeNewRow = (tableIdOverride?: string) => {
+  const commitNewRow = (tableIdOverride?: string) => {
     const tableId = tableIdOverride ?? currentTableId;
     if (!tableId) return null;
 
@@ -240,7 +303,7 @@ export function useLookupTableRowsManager({
   const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
     const next = e.relatedTarget as HTMLElement | null;
     if (newRowRef.current && next && newRowRef.current.contains(next)) return;
-    finalizeNewRow();
+    commitNewRow();
   };
 
   const handleRowChange = (id: string, key: keyof LookupRowView, value: any) => {
@@ -278,8 +341,16 @@ export function useLookupTableRowsManager({
     });
   };
 
-  const toggleSelectAll = (ids: string[]) => setSelectedIds(new Set(ids));
-  const clearSelection = () => setSelectedIds(new Set());
+  const toggleSelectAll = (ids: string[]) =>
+    setSelectedIds((prev) => {
+      if (prev.size === ids.length && ids.every((id) => prev.has(id))) return prev;
+      return new Set(ids);
+    });
+  const clearSelection = () =>
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      return new Set();
+    });
 
   const deleteSelected = () => {
     const ids = Array.from(selectedIds);
@@ -324,7 +395,7 @@ export function useLookupTableRowsManager({
   };
 
   const persist = async (tableId: string) => {
-    finalizeNewRow(tableId);
+    commitNewRow(tableId);
 
     // Create pending rows (drop blanks)
     const adds = pendingAdds.filter((r) => !isBlank(r.values));
@@ -463,6 +534,7 @@ export function useLookupTableRowsManager({
     newRowRef,
     newRowFirstInputRef,
     handleNewRowBlur,
+    commitNewRow,
     handleRowChange,
     handleNewRowChange,
     hasChanges,

@@ -1,4 +1,6 @@
 :root {
+  --app-color-scheme: light;
+
   /* Top bar / brand */
   --color-nav-bg: #e06b2b;
   --color-nav-text: #fffaf5;
@@ -30,6 +32,12 @@
   --color-indicator-new: #15803d;
   --color-indicator-edited: #a16207;
 
+  --size-scrollbar: 10px;
+  --color-scrollbar-track: rgba(13, 28, 59, 0.08);
+  --color-scrollbar-thumb: rgba(13, 28, 59, 0.24);
+  --color-scrollbar-thumb-hover: rgba(13, 28, 59, 0.34);
+  --color-scrollbar-thumb-active: rgba(13, 28, 59, 0.44);
+
   --shadow-1: 0 10px 30px rgba(0, 0, 0, 0.08);
   --shadow-2: 0 8px 24px rgba(0, 33, 71, 0.06);
 
@@ -41,4 +49,5 @@
 /* Planned theme support: wire a toggle later (e.g., App.tsx sets data-theme). */
 [data-theme="dark"] {
   /* Placeholder: dark tokens will be defined when enabling the toggle. */
+  --app-color-scheme: dark;
 }

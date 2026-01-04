@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { DataGridColumn } from "../../../components/table/DataTable";
 import { lookupTablesApi } from "../../../api/entities";
@@ -10,6 +10,8 @@ type UseLookupTableColumnsManagerArgs = {
   confirm: ConfirmFn;
   onTableChangedKey: string;
 };
+
+const lookupTableColumnsNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function useLookupTableColumnsManager({
   currentTableId,
@@ -26,9 +28,6 @@ export function useLookupTableColumnsManager({
     dataType: "string",
     sortOrder: 0,
   });
-
-  const newRowFirstInputRef = useRef<HTMLInputElement | null>(null);
-  const newRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const typeOptions = useMemo<Array<{ value: LookupTableDataType; label: string }>>(
     () => [
@@ -54,7 +53,6 @@ export function useLookupTableColumnsManager({
         key: "sortOrder",
         header: "Order",
         type: "number",
-        width: 80,
         align: "center",
       },
     ],
@@ -62,7 +60,17 @@ export function useLookupTableColumnsManager({
   );
 
   const visibleColumns = useMemo(() => {
-    return [...columns, ...pendingAdds].filter((c) => !pendingDeletes.has(c.id));
+    const base = columns
+      .filter((c) => !pendingDeletes.has(c.id))
+      .slice()
+      .sort(
+        (a, b) =>
+          lookupTableColumnsNameCollator.compare(a.name, b.name) ||
+          a.id.localeCompare(b.id),
+      );
+
+    const pending = pendingAdds.filter((c) => !pendingDeletes.has(c.id));
+    return [...base, ...pending];
   }, [columns, pendingAdds, pendingDeletes]);
 
   const tableRows = useMemo(() => {
@@ -132,16 +140,7 @@ export function useLookupTableColumnsManager({
     };
     setPendingAdds((prev) => [...prev, pending]);
     setNewRow({ name: "", dataType: "string", sortOrder: 0 });
-    requestAnimationFrame(() => {
-      newRowFirstInputRef.current?.focus();
-    });
     return pending;
-  };
-
-  const handleNewRowBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
-    const next = e.relatedTarget as HTMLElement | null;
-    if (newRowRef.current && next && newRowRef.current.contains(next)) return;
-    finalizeNewRow();
   };
 
   const handleRowChange = (id: string, key: keyof LookupTableColumn, value: any) => {
@@ -149,9 +148,10 @@ export function useLookupTableColumnsManager({
       setPendingAdds((prev) => prev.map((c) => (c.id === id ? { ...c, [key]: value } : c)));
       return;
     }
-    setColumns((prev) => prev.map((c) => (c.id === id ? { ...c, [key]: value } : c)));
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [key]: value } }));
   };
+
+  const commitNewRow = () => finalizeNewRow();
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -162,8 +162,16 @@ export function useLookupTableColumnsManager({
     });
   };
 
-  const toggleSelectAll = (ids: string[]) => setSelectedIds(new Set(ids));
-  const clearSelection = () => setSelectedIds(new Set());
+  const toggleSelectAll = (ids: string[]) =>
+    setSelectedIds((prev) => {
+      if (prev.size === ids.length && ids.every((id) => prev.has(id))) return prev;
+      return new Set(ids);
+    });
+  const clearSelection = () =>
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      return new Set();
+    });
 
   const copySelected = async () => {
     const ids = Array.from(selectedIds);
@@ -257,13 +265,10 @@ export function useLookupTableColumnsManager({
     deleteSelected,
     newRow,
     setNewRow,
-    newRowRef,
-    newRowFirstInputRef,
-    handleNewRowBlur,
     handleRowChange,
     getRowStatus,
     hasChanges,
+    commitNewRow,
     persist,
   };
 }
-

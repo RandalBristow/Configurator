@@ -84,7 +84,7 @@ export async function deleteLookupTableColumn(id: string, client?: PrismaClientO
 export async function listLookupTableRows(tableId: string, client?: PrismaClientOrTx) {
   return withClient(client).lookupTableRow.findMany({
     where: { tableId },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
 }
 
@@ -117,4 +117,3 @@ export async function updateLookupTableRow(
 export async function deleteLookupTableRow(id: string, client?: PrismaClientOrTx) {
   return withClient(client).lookupTableRow.delete({ where: { id } });
 }
-

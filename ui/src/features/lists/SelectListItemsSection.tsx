@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ import { useSelectListPropertiesManager } from "./hooks/useSelectListPropertiesM
 import { useSelectListGroupsManager } from "./hooks/useSelectListGroupsManager";
 
 type Props = {
-  showInactive: boolean;
   selectListId?: string;
   onSelectList: (id?: string) => void;
 };
@@ -37,7 +36,6 @@ const EMPTY_ITEM: Partial<SelectListItem> = {
 };
 
 export function SelectListItemsSection({
-  showInactive,
   selectListId,
   onSelectList,
 }: Props) {
@@ -106,8 +104,8 @@ export function SelectListItemsSection({
   });
 
   const itemsQuery = useQuery({
-    queryKey: ["select-list-items", currentListId, showInactive],
-    queryFn: () => selectListItemsApi.list(currentListId, showInactive),
+    queryKey: ["select-list-items", currentListId],
+    queryFn: () => selectListItemsApi.list(currentListId, true),
     enabled: Boolean(currentListId),
   });
 
@@ -991,7 +989,7 @@ export function SelectListItemsSection({
       }
 
       // Refresh items so UI matches backend state
-      const refreshed = await selectListItemsApi.list(listId, showInactive);
+      const refreshed = await selectListItemsApi.list(listId, true);
       setRows(refreshed);
       setNewRow(EMPTY_ITEM);
       if (groupsManager.selectedGroupId) {
@@ -1064,31 +1062,45 @@ export function SelectListItemsSection({
     };
   };
 
-  useEffect(() => {
-    setLeftToolbar(
+  const leftActionsRef = useRef({
+    onNew: handleStartNewList,
+    onCancel: handleCancelNewList,
+    onSave: handleSaveAll,
+    onDelete: handleDeleteList,
+  });
+
+  leftActionsRef.current = {
+    onNew: handleStartNewList,
+    onCancel: handleCancelNewList,
+    onSave: handleSaveAll,
+    onDelete: handleDeleteList,
+  };
+
+  const onNew = useCallback(() => leftActionsRef.current.onNew(), []);
+  const onCancel = useCallback(() => leftActionsRef.current.onCancel(), []);
+  const onSave = useCallback(() => leftActionsRef.current.onSave(), []);
+  const onDelete = useCallback(() => leftActionsRef.current.onDelete(), []);
+
+  const leftToolbarNode = useMemo(
+    () => (
       <SelectListObjectToolbar
         isCreatingNew={isCreatingNew}
         controlsDisabled={isCreatingNew}
         saveDisabled={!listName.trim()}
         deleteDisabled={!currentListId}
-        onNew={handleStartNewList}
-        onCancel={handleCancelNewList}
-        onSave={handleSaveAll}
-        onDelete={handleDeleteList}
+        onNew={onNew}
+        onCancel={onCancel}
+        onSave={onSave}
+        onDelete={onDelete}
       />
-    );
+    ),
+    [isCreatingNew, listName, currentListId, onNew, onCancel, onSave, onDelete],
+  );
 
+  useEffect(() => {
+    setLeftToolbar(leftToolbarNode);
     return () => setLeftToolbar(null);
-  }, [
-    setLeftToolbar,
-    isCreatingNew,
-    listName,
-    currentListId,
-    handleStartNewList,
-    handleCancelNewList,
-    handleSaveAll,
-    handleDeleteList,
-  ]);
+  }, [setLeftToolbar, leftToolbarNode]);
 
   return (
     <WorkspaceShell

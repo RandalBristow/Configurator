@@ -20,26 +20,8 @@ export default function App() {
 }
 
 function AppInner() {
-  const SHOW_INACTIVE_KEY = "configurator.showInactive";
   const [mode, setMode] = useState<AppMode>("data");
   const [dataArea, setDataArea] = useState<DataArea>("selectLists");
-  const [showInactive, setShowInactive] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem(SHOW_INACTIVE_KEY);
-      if (stored === null) return true;
-      return stored === "true";
-    } catch {
-      return true;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(SHOW_INACTIVE_KEY, String(showInactive));
-    } catch {
-      // ignore
-    }
-  }, [showInactive]);
 
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
   const { leftToolbar, rightToolbar } = useTabToolbar();
@@ -63,7 +45,7 @@ function AppInner() {
   const [lookupTableFilter, setLookupTableFilter] = useState("");
 
   const optionLists = useQuery({
-    queryKey: ["select-lists", showInactive],
+    queryKey: ["select-lists"],
     queryFn: () => selectListsApi.list(),
     enabled: mode === "data",
   });
@@ -100,8 +82,6 @@ function AppInner() {
           onChangeDataArea={(area) => {
             setDataArea(area);
           }}
-          showInactive={showInactive}
-          onToggleInactive={setShowInactive}
           leftToolbar={leftToolbar}
           rightToolbar={rightToolbar}
         />
@@ -215,6 +195,7 @@ function AppInner() {
               </button>
             </div>
           )}
+
         </nav>
       }
       footer={<Footer />}
@@ -232,7 +213,6 @@ function AppInner() {
 
       {mode === "data" && dataArea === "selectLists" && (
         <SelectListItemsSection
-          showInactive={showInactive}
           selectListId={selectedSelectList}
           onSelectList={(id) => {
             setCreatingNewList(!id);

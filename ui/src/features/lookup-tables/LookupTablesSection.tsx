@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useResizableSidePanel } from "../../hooks/useResizableSidePanel";
@@ -6,14 +6,16 @@ import { lookupTablesApi } from "../../api/entities";
 import type { LookupTable, LookupTableColumn } from "../../types/domain";
 import { ConfirmDialog } from "../../components/dialogs/ConfirmDialog";
 import { LookupTableObjectToolbar } from "../../components/lookup-tables/LookupTableObjectToolbar";
-import { LookupTableRowsPane } from "../../components/lookup-tables/LookupTableRowsPane";
+import { LookupTableRowsRdgPane } from "../../components/lookup-tables/LookupTableRowsRdgPane";
 import { LookupTableColumnsPane } from "../../components/lookup-tables/LookupTableColumnsPane";
 import { LookupTableDetailsPane } from "../../components/lookup-tables/LookupTableDetailsPane";
 import { WorkspaceShell } from "../../components/workspace/WorkspaceShell";
-import { WorkspaceTabs } from "../../components/workspace/WorkspaceTabs";
+import { WorkspaceSideMenubar } from "../../components/workspace/WorkspaceSideMenubar";
 import { useTabToolbar } from "../../layout/TabToolbarContext";
 import { useLookupTableColumnsManager } from "./hooks/useLookupTableColumnsManager";
 import { useLookupTableRowsManager } from "./hooks/useLookupTableRowsManager";
+import { ToolbarButton, ToolbarDivider } from "../../components/ui/ToolbarButton";
+import { Copy, Eraser, Trash2 } from "lucide-react";
 
 type Props = {
   tableId?: string;
@@ -262,31 +264,47 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
     }
   };
 
+  const leftActionsRef = useRef({
+    onNew: handleStartNew,
+    onCancel: handleCancelNew,
+    onSave: handleSaveAll,
+    onDelete: handleDeleteTable,
+  });
+
   useEffect(() => {
-    setLeftToolbar(
+    leftActionsRef.current = {
+      onNew: handleStartNew,
+      onCancel: handleCancelNew,
+      onSave: handleSaveAll,
+      onDelete: handleDeleteTable,
+    };
+  }, [handleStartNew, handleCancelNew, handleSaveAll, handleDeleteTable]);
+
+  const onNew = useCallback(() => leftActionsRef.current.onNew(), []);
+  const onCancel = useCallback(() => leftActionsRef.current.onCancel(), []);
+  const onSave = useCallback(() => leftActionsRef.current.onSave(), []);
+  const onDelete = useCallback(() => leftActionsRef.current.onDelete(), []);
+
+  const leftToolbarNode = useMemo(
+    () => (
       <LookupTableObjectToolbar
         isCreatingNew={isCreatingNew}
         controlsDisabled={isCreatingNew}
         saveDisabled={!tableName.trim()}
         deleteDisabled={!currentTableId}
-        onNew={handleStartNew}
-        onCancel={handleCancelNew}
-        onSave={handleSaveAll}
-        onDelete={handleDeleteTable}
+        onNew={onNew}
+        onCancel={onCancel}
+        onSave={onSave}
+        onDelete={onDelete}
       />
-    );
+    ),
+    [isCreatingNew, tableName, currentTableId, onNew, onCancel, onSave, onDelete],
+  );
 
+  useEffect(() => {
+    setLeftToolbar(leftToolbarNode);
     return () => setLeftToolbar(null);
-  }, [
-    setLeftToolbar,
-    isCreatingNew,
-    tableName,
-    currentTableId,
-    handleStartNew,
-    handleCancelNew,
-    handleSaveAll,
-    handleDeleteTable,
-  ]);
+  }, [setLeftToolbar, leftToolbarNode]);
 
   return (
     <WorkspaceShell
@@ -295,8 +313,8 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
       onSplitterMouseDown={onSplitterMouseDown}
       main={
         <>
-          <div className="center-pane">
-            <LookupTableRowsPane<LookupRowView>
+          <div className="center-pane center-pane--flush">
+            <LookupTableRowsRdgPane<LookupRowView>
               toolbar={{
                 selectedCount: rowsManager.selectedIds.size,
                 canReset: Boolean(currentTableId),
@@ -312,14 +330,11 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 columns: rowsManager.rowColumns,
                 rows: rowsManager.rowViews,
                 selectedIds: rowsManager.selectedIds,
-                onToggleSelect: rowsManager.toggleSelect,
                 onToggleSelectAll: rowsManager.toggleSelectAll,
                 onRowChange: rowsManager.handleRowChange,
                 newRow: rowsManager.newRow,
                 onNewRowChange: rowsManager.handleNewRowChange,
-                newRowRef: rowsManager.newRowRef,
-                newRowFirstInputRef: rowsManager.newRowFirstInputRef,
-                onNewRowBlur: rowsManager.handleNewRowBlur,
+                onCommitNewRow: () => void rowsManager.commitNewRow(),
                 disabled: isCreatingNew || !currentTableId,
                 getRowStatus: rowsManager.getRowStatus,
               }}
@@ -329,17 +344,46 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
       }
       inspector={
         <>
-          <WorkspaceTabs
-            items={[
+          <WorkspaceSideMenubar
+            tabs={[
               { id: "details", label: "Details" },
               { id: "columns", label: "Columns", disabled: columnsDisabled },
             ]}
-            variant="menubar"
-            activeId={sidePaneTab}
-            onChange={(id) => setSidePaneTab(id as SidePaneTab)}
+            activeTab={sidePaneTab}
+            onChangeTab={(id) => setSidePaneTab(id as SidePaneTab)}
+            toolbar={
+              sidePaneTab === "columns" ? (
+                <div className="selection-bar selection-bar--compact">
+                  <div className="selection-bar__actions">
+                    <ToolbarButton
+                      title="Clear selection"
+                      onClick={columnsManager.clearSelection}
+                      disabled={columnsDisabled || columnsManager.selectedIds.size === 0}
+                      icon={<Eraser size={14} />}
+                      label="Clear"
+                    />
+                    <ToolbarButton
+                      title="Copy selected rows"
+                      onClick={columnsManager.copySelected}
+                      disabled={columnsDisabled || columnsManager.selectedIds.size === 0}
+                      icon={<Copy size={14} />}
+                      label="Copy"
+                    />
+                    <ToolbarDivider />
+                    <ToolbarButton
+                      title="Delete selected rows"
+                      onClick={columnsManager.deleteSelected}
+                      disabled={columnsDisabled || columnsManager.selectedIds.size === 0}
+                      icon={<Trash2 size={14} />}
+                      label="Delete"
+                    />
+                  </div>
+                </div>
+              ) : null
+            }
           />
 
-          <div className="side-pane-inner">
+          <div className={`side-pane-inner ${sidePaneTab === "columns" ? "side-pane-inner--flush" : ""}`}>
             {sidePaneTab === "details" ? (
               <LookupTableDetailsPane
                 tableName={tableName}
@@ -355,19 +399,13 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 columns={columnsManager.gridColumns}
                 rows={columnsManager.tableRows}
                 selectedIds={columnsManager.selectedIds}
-                onToggleSelect={columnsManager.toggleSelect}
                 onToggleSelectAll={columnsManager.toggleSelectAll}
                 onRowChange={columnsManager.handleRowChange}
                 newRow={columnsManager.newRow}
                 onNewRowChange={(key, value) =>
                   columnsManager.setNewRow((prev) => ({ ...prev, [key]: value }))
                 }
-                newRowRef={columnsManager.newRowRef}
-                newRowFirstInputRef={columnsManager.newRowFirstInputRef}
-                onNewRowBlur={columnsManager.handleNewRowBlur}
-                onClearSelection={columnsManager.clearSelection}
-                onCopySelected={columnsManager.copySelected}
-                onDeleteSelected={columnsManager.deleteSelected}
+                onCommitNewRow={() => void columnsManager.commitNewRow()}
                 getRowStatus={columnsManager.getRowStatus}
               />
             )}

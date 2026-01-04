@@ -1,4 +1,4 @@
-import type React from "react";
+import type { ReactNode } from "react";
 import type { AppMode } from "./Header";
 
 export type DataArea = "selectLists" | "lookupTables" | "ranges";
@@ -8,19 +8,14 @@ type Props = {
   dataArea: DataArea;
   onChangeDataArea: (area: DataArea) => void;
 
-  showInactive: boolean;
-  onToggleInactive: (val: boolean) => void;
-
-  leftToolbar?: React.ReactNode;
-  rightToolbar?: React.ReactNode;
+  leftToolbar?: ReactNode;
+  rightToolbar?: ReactNode;
 };
 
 export function MenuBar({
   mode,
   dataArea,
   onChangeDataArea,
-  showInactive,
-  onToggleInactive,
   leftToolbar,
   rightToolbar,
 }: Props) {
@@ -61,16 +56,6 @@ export function MenuBar({
           <div className="menubar-toolbar-grid__splitter" aria-hidden="true" />
           <div className="menubar-toolbar-grid__right">
             <div className="menubar-toolbar-grid__right-left">{rightToolbar}</div>
-            <div className="menubar-toolbar-grid__right-right">
-              <label className="menubar-toggle">
-                <input
-                  type="checkbox"
-                  checked={showInactive}
-                  onChange={(e) => onToggleInactive(e.target.checked)}
-                />
-                Show inactive
-              </label>
-            </div>
           </div>
         </div>
       </div>

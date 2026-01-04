@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { DataGridColumn } from "../table/DataTable";
 import { DataGrid } from "../table/DataTable";
 import { DataTableToolbar } from "../table/DataTableToolbar";
@@ -60,35 +60,51 @@ export function SelectListItemsTablePane<T extends SelectListItem>({
   grid,
 }: Props<T>) {
   const { setRightToolbar } = useTabToolbar();
+  const toolbarRef = useRef(toolbar);
 
   useEffect(() => {
-    setRightToolbar(
+    toolbarRef.current = toolbar;
+  }, [toolbar]);
+
+  const onReset = useCallback(() => toolbarRef.current.onReset(), []);
+  const onImportClipboard = useCallback(() => toolbarRef.current.onImportClipboard(), []);
+  const onImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => toolbarRef.current.onImportFile(e), []);
+  const onClearSelection = useCallback(() => toolbarRef.current.onClearSelection(), []);
+  const onCopySelected = useCallback(() => toolbarRef.current.onCopySelected(), []);
+  const onDeleteSelected = useCallback(() => toolbarRef.current.onDeleteSelected(), []);
+
+  const toolbarNode = useMemo(
+    () => (
       <DataTableToolbar
         selectedCount={toolbar.selectedCount}
         rowCount={grid.rows.length}
         canReset={toolbar.canReset}
         disabled={toolbar.disabled}
-        onImportClipboard={toolbar.onImportClipboard}
-        onImportFile={toolbar.onImportFile}
-        onClearSelection={toolbar.onClearSelection}
-        onCopySelected={toolbar.onCopySelected}
-        onDeleteSelected={toolbar.onDeleteSelected}
-        onReset={toolbar.onReset}
+        onImportClipboard={onImportClipboard}
+        onImportFile={onImportFile}
+        onClearSelection={onClearSelection}
+        onCopySelected={onCopySelected}
+        onDeleteSelected={onDeleteSelected}
+        onReset={onReset}
       />
-    );
-  }, [
-    setRightToolbar,
-    toolbar.selectedCount,
-    toolbar.canReset,
-    toolbar.disabled,
-    toolbar.onImportClipboard,
-    toolbar.onImportFile,
-    toolbar.onClearSelection,
-    toolbar.onCopySelected,
-    toolbar.onDeleteSelected,
-    toolbar.onReset,
-    grid.rows.length,
-  ]);
+    ),
+    [
+      toolbar.selectedCount,
+      toolbar.canReset,
+      toolbar.disabled,
+      grid.rows.length,
+      onImportClipboard,
+      onImportFile,
+      onClearSelection,
+      onCopySelected,
+      onDeleteSelected,
+      onReset,
+    ],
+  );
+
+  useEffect(() => {
+    setRightToolbar(toolbarNode);
+  }, [setRightToolbar, toolbarNode]);
 
   useEffect(() => {
     return () => setRightToolbar(null);

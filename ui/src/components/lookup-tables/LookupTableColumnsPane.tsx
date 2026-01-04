@@ -1,7 +1,6 @@
-import type React from "react";
-import { DataGrid, type DataGridColumn } from "../table/DataTable";
-import { GroupSetToolbar } from "../select-lists/GroupSetToolbar";
+import type { DataGridColumn } from "../table/DataTable";
 import type { LookupTableColumn } from "../../types/domain";
+import { RdgGrid } from "../table/RdgGrid";
 
 type Props = {
   disabled: boolean;
@@ -11,20 +10,13 @@ type Props = {
   rows: LookupTableColumn[];
 
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
   onToggleSelectAll: (ids: string[]) => void;
 
   onRowChange: (id: string, key: keyof LookupTableColumn, value: any) => void;
 
   newRow: Partial<LookupTableColumn>;
   onNewRowChange: (key: keyof LookupTableColumn, value: any) => void;
-  newRowRef: React.RefObject<HTMLTableRowElement | null>;
-  newRowFirstInputRef: React.RefObject<HTMLInputElement | null>;
-  onNewRowBlur: (e: React.FocusEvent<HTMLTableRowElement>) => void;
-
-  onClearSelection: () => void;
-  onCopySelected: () => void;
-  onDeleteSelected: () => void;
+  onCommitNewRow: () => void;
 
   getRowStatus: (row: LookupTableColumn) => "new" | "edited" | undefined;
 };
@@ -35,69 +27,44 @@ export function LookupTableColumnsPane({
   columns,
   rows,
   selectedIds,
-  onToggleSelect,
   onToggleSelectAll,
   onRowChange,
   newRow,
   onNewRowChange,
-  newRowRef,
-  newRowFirstInputRef,
-  onNewRowBlur,
-  onClearSelection,
-  onCopySelected,
-  onDeleteSelected,
+  onCommitNewRow,
   getRowStatus,
 }: Props) {
   return (
     <>
-      <div className="muted small">Define the columns for this table.</div>
-      {disabled && (
-        <div className="muted small" style={{ marginTop: 8 }}>
-          Save the lookup table to manage columns.
-        </div>
-      )}
+      <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+        {isLoading && (
+          <div className="muted small" style={{ padding: 12 }}>
+            Loading columns...
+          </div>
+        )}
+        {!isLoading && rows.length === 0 && (
+          <div className="muted small" style={{ padding: 12 }}>
+            No columns yet.
+          </div>
+        )}
 
-      <div style={{ marginTop: 8 }}>
-        <GroupSetToolbar
-          disabled={disabled}
-          hasSelection={selectedIds.size > 0}
-          onClearSelection={onClearSelection}
-          onCopySelected={onCopySelected}
-          onDeleteSelected={onDeleteSelected}
-        />
-      </div>
-
-      {isLoading && (
-        <div className="muted small" style={{ marginTop: 10 }}>
-          Loading columns...
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <RdgGrid
+            columns={columns}
+            rows={rows}
+            selectedIds={selectedIds}
+            onToggleSelectAll={onToggleSelectAll}
+            onRowChange={onRowChange}
+            fillColumnKey="name"
+            fillMinPx={60}
+            newRow={newRow}
+            onNewRowChange={onNewRowChange}
+            onCommitNewRow={onCommitNewRow}
+            showNewRow={!disabled}
+            disabled={disabled}
+            getRowStatus={getRowStatus}
+          />
         </div>
-      )}
-      {!isLoading && rows.length === 0 && (
-        <div className="muted small" style={{ marginTop: 10 }}>
-          No columns yet.
-        </div>
-      )}
-
-      <div className="table-pane" style={{ marginTop: 8 }}>
-        <DataGrid
-          columns={columns}
-          rows={rows}
-          getRowId={(row) => row.id}
-          selectedIds={selectedIds}
-          onToggleSelect={onToggleSelect}
-          onToggleSelectAll={onToggleSelectAll}
-          onRowChange={onRowChange}
-          newRow={newRow}
-          onNewRowChange={onNewRowChange}
-          newRowRef={newRowRef}
-          newRowFirstInputRef={newRowFirstInputRef}
-          onNewRowBlur={onNewRowBlur}
-          enableFilters
-          enableSorting={false}
-          showNewRow={!disabled}
-          getRowStatus={getRowStatus}
-          disabled={disabled}
-        />
       </div>
     </>
   );
