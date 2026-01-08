@@ -14,9 +14,11 @@ import { type DataGridColumn } from "../../components/table/DataTable";
 import { SelectListGroupsPane, type GroupRow } from "../../components/select-lists/SelectListGroupsPane";
 import { SelectListPropertiesPane } from "../../components/select-lists/SelectListPropertiesPane";
 import { WorkspaceShell } from "../../components/workspace/WorkspaceShell";
-import { WorkspaceTabs } from "../../components/workspace/WorkspaceTabs";
+import { WorkspaceSideMenubar } from "../../components/workspace/WorkspaceSideMenubar";
 import { useSelectListPropertiesManager } from "./hooks/useSelectListPropertiesManager";
 import { useSelectListGroupsManager } from "./hooks/useSelectListGroupsManager";
+import { ToolbarButton, ToolbarDivider } from "../../components/ui/ToolbarButton";
+import { Copy, Eraser, Trash2 } from "lucide-react";
 
 type Props = {
   selectListId?: string;
@@ -302,9 +304,12 @@ export function SelectListItemsSection({
     key: keyof SelectListItem,
     value: any
   ) => {
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [key]: value } : r))
-    );
+    if (id.startsWith("local-")) {
+      setPendingAdds((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+      return;
+    }
+
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     setDrafts((prev) => ({
       ...prev,
       [id]: { ...(prev[id] ?? {}), [key]: value },
@@ -326,28 +331,26 @@ export function SelectListItemsSection({
   const handleDeleteSelected = () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) return;
+    const localIds = ids.filter((id) => id.startsWith("local-"));
+    const existingIds = ids.filter((id) => !id.startsWith("local-"));
     setConfirmDialog({
       open: true,
       title: `Delete ${ids.length} row(s)?`,
       description: "This cannot be undone.",
       onConfirm: async () => {
-        setPendingDeletes((prev) => {
-          const next = new Set(prev);
-          ids.forEach((id) => next.add(id));
-          return next;
-        });
+        if (existingIds.length) {
+          setPendingDeletes((prev) => {
+            const next = new Set(prev);
+            existingIds.forEach((id) => next.add(id));
+            return next;
+          });
+          setRows((prev) => prev.filter((r) => !existingIds.includes(r.id)));
+        }
+        if (localIds.length) {
+          setPendingAdds((prev) => prev.filter((r) => !localIds.includes(r.id)));
+        }
         setSelectedIds(new Set());
-        setRows((prev) => prev.filter((r) => !ids.includes(r.id)));
       },
-    });
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
     });
   };
 
@@ -494,14 +497,12 @@ export function SelectListItemsSection({
         key: "order",
         header: "*Order",
         type: "number",
-        width: 70,
         align: "center",
       },
       {
         key: "isActive",
         header: "Active",
         type: "boolean",
-        width: 70,
         align: "center",
         filterLabel: (val) => (val ? "Active" : "Inactive"),
       },
@@ -927,8 +928,9 @@ export function SelectListItemsSection({
       }
 
       await Promise.all(
-        Object.entries(groupsManager.pendingGroupAdds).flatMap(([setId, names]) =>
-          names
+        Object.entries(groupsManager.pendingGroupAdds).flatMap(([setId, pending]) =>
+          pending
+            .map((p) => p.name)
             .filter((name) => name.trim())
             .map((name) => {
               const targetSetId = tempSetIdMap.get(setId) ?? setId;
@@ -1109,9 +1111,8 @@ export function SelectListItemsSection({
       onSplitterMouseDown={onSplitterMouseDown}
       main={
         <>
-          <div className="center-pane">
+          <div className="center-pane center-pane--flush">
             <SelectListItemsTablePane<SelectListItemRow>
-              onFocusSelectAll={handleFocusSelectAll}
               groupsDisabled={groupsDisabled}
               groupSets={groupSets}
               selectedGroupSetId={groupsManager.selectedGroupSetId}
@@ -1134,7 +1135,6 @@ export function SelectListItemsSection({
                 columns: tableColumns,
                 rows: tableRows,
                 selectedIds,
-                onToggleSelect: toggleSelect,
                 onToggleSelectAll: (ids) => setSelectedIds(new Set(ids)),
                 onRowChange: (id, key, value) => {
                   if (key === "__member") {
@@ -1155,6 +1155,28 @@ export function SelectListItemsSection({
                   if (String(key).startsWith("prop:")) return;
                   setNewRow((prev) => ({ ...prev, [key]: value }));
                 },
+                onCommitNewRow: (draft) => {
+                  if (!currentListId) {
+                    toast.error("Select a list first.");
+                    return;
+                  }
+                  if (!draft) return;
+                  const pendingRow: SelectListItem = {
+                    id: draft.id,
+                    selectListId: currentListId,
+                    value: String(draft.value ?? ""),
+                    displayValue: String(draft.displayValue ?? ""),
+                    order: typeof draft.order === "number" ? draft.order : Number(draft.order) || 0,
+                    isActive: draft.isActive ?? true,
+                    tooltip: draft.tooltip ?? "",
+                    comments: draft.comments ?? "",
+                  };
+                  setPendingAdds((prev) => {
+                    if (prev.some((r) => r.id === pendingRow.id)) return prev;
+                    return [...prev, pendingRow];
+                  });
+                  setNewRow(EMPTY_ITEM);
+                },
                 newRowRef,
                 newRowFirstInputRef,
                 onNewRowBlur: handleNewRowBlur,
@@ -1168,18 +1190,47 @@ export function SelectListItemsSection({
       }
       inspector={
         <>
-          <WorkspaceTabs
-            items={[
+          <WorkspaceSideMenubar
+            tabs={[
               { id: "details", label: "Details" },
               { id: "groups", label: "Groups", disabled: groupsDisabled },
               { id: "properties", label: "Properties", disabled: groupsDisabled },
             ]}
-            variant="menubar"
-            activeId={sidePaneTab}
-            onChange={(id) => setSidePaneTab(id as SidePaneTab)}
+            activeTab={sidePaneTab}
+            onChangeTab={(id) => setSidePaneTab(id as SidePaneTab)}
+            toolbar={
+              sidePaneTab === "properties" ? (
+                <div className="selection-bar selection-bar--compact">
+                  <div className="selection-bar__actions">
+                    <ToolbarButton
+                      title="Clear selection"
+                      onClick={propertiesManager.clearPropertySelection}
+                      disabled={groupsDisabled || propertiesManager.propertySelectedIds.size === 0}
+                      icon={<Eraser size={14} />}
+                      label="Clear"
+                    />
+                    <ToolbarButton
+                      title="Copy selected rows"
+                      onClick={propertiesManager.copySelectedProperties}
+                      disabled={groupsDisabled || propertiesManager.propertySelectedIds.size === 0}
+                      icon={<Copy size={14} />}
+                      label="Copy"
+                    />
+                    <ToolbarDivider />
+                    <ToolbarButton
+                      title="Delete selected rows"
+                      onClick={propertiesManager.deleteSelectedProperties}
+                      disabled={groupsDisabled || propertiesManager.propertySelectedIds.size === 0}
+                      icon={<Trash2 size={14} />}
+                      label="Delete"
+                    />
+                  </div>
+                </div>
+              ) : undefined
+            }
           />
 
-          <div className="side-pane-inner">
+          <div className="side-pane-inner side-pane-inner--flush">
             {sidePaneTab === "details" ? (
               <SelectListDetailsPane
                 listName={listName}
@@ -1211,15 +1262,11 @@ export function SelectListItemsSection({
                 getRowStatus={groupsManager.getGroupRowStatus}
                 groupRowsBySetId={groupsManager.groupRowsBySetId}
                 groupSelectionsBySetId={groupsManager.groupSelections}
-                onToggleGroupSelect={groupsManager.handleToggleGroupSelect}
                 onToggleGroupSelectAll={groupsManager.handleToggleGroupSelectAll}
                 onGroupNameChange={groupsManager.handleGroupNameChange}
                 groupNewRowsBySetId={groupsManager.groupNewRows}
                 onGroupNewRowChange={groupsManager.handleGroupNewRowChange}
-                onGroupNewRowBlur={groupsManager.handleGroupNewRowBlur}
-                getGroupNewRowFirstInputRef={groupsManager.getGroupNewRowFirstInputRef}
-                onImportClipboard={groupsManager.handleImportGroupsFromClipboard}
-                onImportFile={groupsManager.handleImportGroupsFromFile}
+                onGroupCommitNewRow={(setId, draft) => groupsManager.handleGroupNewRowBlur(setId, draft)}
                 onClearSelection={(setId) => groupsManager.handleToggleGroupSelectAll(setId, [])}
                 onCopySelected={groupsManager.handleCopySelectedGroups}
                 onDeleteSelected={groupsManager.handleDeleteSelectedGroups}
@@ -1231,19 +1278,13 @@ export function SelectListItemsSection({
                 columns={propertiesManager.propertyColumns}
                 rows={propertiesManager.propertyTableRows}
                 selectedIds={propertiesManager.propertySelectedIds}
-                onToggleSelect={propertiesManager.togglePropertySelect}
                 onToggleSelectAll={propertiesManager.togglePropertySelectAll}
                 onRowChange={propertiesManager.handlePropertyRowChange}
                 newRow={propertiesManager.propertyNewRow}
                 onNewRowChange={(key, value) =>
                   propertiesManager.setPropertyNewRow((prev) => ({ ...prev, [key]: value }))
                 }
-                newRowRef={propertiesManager.propertyNewRowRef}
-                newRowFirstInputRef={propertiesManager.propertyNewRowFirstInputRef}
-                onNewRowBlur={propertiesManager.handlePropertyNewRowBlur}
-                onClearSelection={propertiesManager.clearPropertySelection}
-                onCopySelected={propertiesManager.copySelectedProperties}
-                onDeleteSelected={propertiesManager.deleteSelectedProperties}
+                onCommitNewRow={() => propertiesManager.finalizeNewPropertyRow()}
                 getRowStatus={propertiesManager.getPropertyRowStatus}
               />
             )}

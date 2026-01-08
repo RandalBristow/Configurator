@@ -6,6 +6,7 @@ import type { SelectListGroupSet } from "../../../types/domain";
 import type { ConfirmFn } from "./useSelectListPropertiesManager";
 
 type PendingGroupSet = { id: string; name: string; createdAt: string; updatedAt: string };
+type PendingGroupAdd = { id: string; name: string };
 
 type UseSelectListGroupsManagerArgs = {
   currentListId?: string;
@@ -35,7 +36,7 @@ export function useSelectListGroupsManager({
   const [groupSelections, setGroupSelections] = useState<Record<string, Set<string>>>({});
   const [selectedGroupSetId, setSelectedGroupSetId] = useState<string | undefined>();
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>();
-  const [pendingGroupAdds, setPendingGroupAdds] = useState<Record<string, string[]>>({});
+  const [pendingGroupAdds, setPendingGroupAdds] = useState<Record<string, PendingGroupAdd[]>>({});
   const [pendingGroupDeletes, setPendingGroupDeletes] = useState<Record<string, Set<string>>>({});
   const [pendingGroupSetDeletes, setPendingGroupSetDeletes] = useState<Set<string>>(new Set());
   const [pendingGroupSetAdds, setPendingGroupSetAdds] = useState<PendingGroupSet[]>([]);
@@ -252,9 +253,9 @@ export function useSelectListGroupsManager({
     });
   };
 
-  const handleCreateGroup = (setId: string, name: string) => {
+  const handleCreateGroup = (setId: string, pending: PendingGroupAdd) => {
     if (groupsDisabled) return;
-    const trimmed = name.trim();
+    const trimmed = pending.name.trim();
     if (!trimmed) return;
 
     const set = groupSets.find((s) => s.id === setId);
@@ -262,13 +263,15 @@ export function useSelectListGroupsManager({
     set?.groups.forEach((group) =>
       existingNames.add((groupDrafts[group.id] ?? group.name).trim().toLowerCase()),
     );
-    (pendingGroupAdds[setId] ?? []).forEach((pending) => existingNames.add(pending.trim().toLowerCase()));
+    (pendingGroupAdds[setId] ?? []).forEach((existingPending) =>
+      existingNames.add(existingPending.name.trim().toLowerCase()),
+    );
 
     if (existingNames.has(trimmed.toLowerCase())) {
       toast.error("Group name must be unique in this set");
       return;
     }
-    setPendingGroupAdds((prev) => ({ ...prev, [setId]: [...(prev[setId] ?? []), trimmed] }));
+    setPendingGroupAdds((prev) => ({ ...prev, [setId]: [...(prev[setId] ?? []), { ...pending, name: trimmed }] }));
   };
 
   const handleGroupNewRowChange = (setId: string, value: string) => {
@@ -282,17 +285,30 @@ export function useSelectListGroupsManager({
     return groupNewRowFirstInputRefs.current[setId];
   };
 
-  const handleGroupNewRowBlur = (setId: string) => {
-    const name = groupNewRows[setId]?.name ?? "";
+  const handleGroupNewRowBlur = (setId: string, draft?: GroupRow) => {
+    const name = draft?.name ?? groupNewRows[setId]?.name ?? "";
     if (!name.trim()) return;
-    handleCreateGroup(setId, name);
+    const id =
+      draft?.id ??
+      `pending-${setId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    handleCreateGroup(setId, { id, name });
     setGroupNewRows((prev) => ({ ...prev, [setId]: { name: "" } }));
-    requestAnimationFrame(() => {
-      getGroupNewRowFirstInputRef(setId).current?.focus();
-    });
   };
 
-  const handleGroupNameChange = (_setId: string, groupId: string, value: string) => {
+  const handleGroupNameChange = (setId: string, groupId: string, value: string) => {
+    const prefix = `pending-${setId}-`;
+    if (groupId.startsWith(prefix)) {
+      setPendingGroupAdds((prev) => {
+        const existing = prev[setId] ?? [];
+        const idx = existing.findIndex((p) => p.id === groupId);
+        if (idx === -1) return prev;
+        const nextForSet = existing.slice();
+        nextForSet[idx] = { ...nextForSet[idx], name: value };
+        return { ...prev, [setId]: nextForSet };
+      });
+      return;
+    }
+
     setGroupDrafts((prev) => ({ ...prev, [groupId]: value }));
   };
 
@@ -320,10 +336,23 @@ export function useSelectListGroupsManager({
       title: `Delete ${ids.length} group(s)?`,
       description: "This cannot be undone.",
       onConfirm: async () => {
+        const prefix = `pending-${set.id}-`;
+        const pendingIds = ids.filter((id) => id.startsWith(prefix));
+
+        if (pendingIds.length) {
+          setPendingGroupAdds((prev) => {
+            const existing = prev[set.id] ?? [];
+            if (!existing.length) return prev;
+            const nextForSet = existing.filter((p) => !pendingIds.includes(p.id));
+            return { ...prev, [set.id]: nextForSet };
+          });
+        }
+
+        const realIds = ids.filter((id) => !id.startsWith(prefix));
         setPendingGroupDeletes((prev) => {
           const next = { ...prev };
           const setDeletes = new Set(next[set.id] ?? []);
-          ids.forEach((groupId) => setDeletes.add(groupId));
+          realIds.forEach((groupId) => setDeletes.add(groupId));
           next[set.id] = setDeletes;
           return next;
         });
@@ -408,9 +437,9 @@ export function useSelectListGroupsManager({
         id: group.id,
         name: groupDrafts[group.id] ?? group.name,
       }));
-      const pendingRows = (pendingGroupAdds[set.id] ?? []).map((name, idx) => ({
-        id: `pending-${set.id}-${idx}`,
-        name,
+      const pendingRows = (pendingGroupAdds[set.id] ?? []).map((pending) => ({
+        id: pending.id,
+        name: pending.name,
       }));
       const deletes = pendingGroupDeletes[set.id] ?? new Set<string>();
       const activeRows = existingRows.filter((row) => !deletes.has(row.id));

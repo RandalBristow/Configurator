@@ -1,7 +1,7 @@
-import type React from "react";
-import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from "lucide-react";
-import { DataGrid, type DataGridColumn } from "../table/DataTable";
-import { GroupSetToolbar } from "./GroupSetToolbar";
+import { Check, ChevronDown, ChevronRight, Copy, Eraser, Pencil, Trash2, X } from "lucide-react";
+import { RdgGrid } from "../table/RdgGrid";
+import type { DataGridColumn } from "../table/DataTable";
+import { ToolbarButton, ToolbarDivider } from "../ui/ToolbarButton";
 import type { SelectListGroupSet } from "../../types/domain";
 
 export type DisplayGroupSet = SelectListGroupSet & { __pending?: boolean };
@@ -34,18 +34,12 @@ type Props = {
 
   groupRowsBySetId: Record<string, GroupRow[]>;
   groupSelectionsBySetId: Record<string, Set<string>>;
-  onToggleGroupSelect: (setId: string, groupId: string) => void;
   onToggleGroupSelectAll: (setId: string, ids: string[]) => void;
-
   onGroupNameChange: (setId: string, groupId: string, value: string) => void;
 
   groupNewRowsBySetId: Record<string, { name?: string }>;
   onGroupNewRowChange: (setId: string, value: string) => void;
-  onGroupNewRowBlur: (setId: string) => void;
-  getGroupNewRowFirstInputRef: (setId: string) => React.MutableRefObject<HTMLInputElement | null>;
-
-  onImportClipboard: (set: SelectListGroupSet) => void;
-  onImportFile: (set: SelectListGroupSet, e: React.ChangeEvent<HTMLInputElement>) => void;
+  onGroupCommitNewRow: (setId: string, draft?: GroupRow) => void;
   onClearSelection: (setId: string) => void;
   onCopySelected: (set: SelectListGroupSet) => void;
   onDeleteSelected: (set: SelectListGroupSet) => void;
@@ -73,29 +67,25 @@ export function SelectListGroupsPane({
   getRowStatus,
   groupRowsBySetId,
   groupSelectionsBySetId,
-  onToggleGroupSelect,
   onToggleGroupSelectAll,
   onGroupNameChange,
   groupNewRowsBySetId,
   onGroupNewRowChange,
-  onGroupNewRowBlur,
-  getGroupNewRowFirstInputRef,
-  onImportClipboard,
-  onImportFile,
+  onGroupCommitNewRow,
   onClearSelection,
   onCopySelected,
   onDeleteSelected,
 }: Props) {
   return (
     <>
-      <div className="muted small">Manage group sets and groups for this list.</div>
+      {/* <div className="muted small">Manage group sets and groups for this list.</div> */}
       {disabled && (
         <div className="muted small" style={{ marginTop: 8 }}>
           Save the select list to manage group sets.
         </div>
       )}
 
-      <div className="pane-header-actions row" style={{ marginTop: 8, gap: 8 }}>
+      <div className="pane-header-actions row">
         <button
           className="btn secondary small-btn"
           type="button"
@@ -201,34 +191,48 @@ export function SelectListGroupsPane({
 
             {isOpen && (
               <div className="group-set-body">
-                <GroupSetToolbar
-                  disabled={disabled}
-                  hasSelection={selectedGroups.size > 0}
-                  onImportClipboard={() => onImportClipboard(set)}
-                  onImportFile={(e) => onImportFile(set, e)}
-                  onClearSelection={() => onClearSelection(set.id)}
-                  onCopySelected={() => onCopySelected(set)}
-                  onDeleteSelected={() => onDeleteSelected(set)}
-                />
+                <div className="selection-bar selection-bar--compact" style={{ padding: 0, marginBottom: 2, marginTop: -4 }}>
+                  <div className="selection-bar__actions">
+                    <ToolbarButton
+                      title="Clear selection"
+                      onClick={() => onClearSelection(set.id)}
+                      disabled={disabled || selectedGroups.size === 0}
+                      label="Clear"
+                      icon={<Eraser size={14} />}
+                    />
+                    <ToolbarButton
+                      title="Copy selected rows"
+                      onClick={() => onCopySelected(set)}
+                      disabled={disabled || selectedGroups.size === 0}
+                      label="Copy"
+                      icon={<Copy size={14} />}
+                    />
+                    <ToolbarDivider />
+                    <ToolbarButton
+                      title="Delete selected rows"
+                      onClick={() => onDeleteSelected(set)}
+                      disabled={disabled || selectedGroups.size === 0}
+                      label="Delete"
+                      icon={<Trash2 size={14} />}
+                    />
+                  </div>
+                </div>
                 <div className="group-set-table">
-                  <DataGrid
+                  <RdgGrid
                     columns={groupColumns}
                     rows={groupRows}
-                    getRowId={(row) => row.id}
                     selectedIds={selectedGroups}
-                    onToggleSelect={(id) => onToggleGroupSelect(set.id, id)}
                     onToggleSelectAll={(ids) => onToggleGroupSelectAll(set.id, ids)}
                     onRowChange={(id, _key, value) => onGroupNameChange(set.id, id, String(value))}
                     newRow={groupNewRowsBySetId[set.id] ?? {}}
                     onNewRowChange={(_key, value) => onGroupNewRowChange(set.id, String(value))}
-                    onNewRowBlur={() => onGroupNewRowBlur(set.id)}
-                    newRowFirstInputRef={getGroupNewRowFirstInputRef(set.id)}
-                    enableSelection
-                    enableFilters={false}
-                    enableSorting={false}
+                    onCommitNewRow={(draft) => onGroupCommitNewRow(set.id, draft as any)}
                     showNewRow
+                    newRowIdPrefix={`pending-${set.id}-`}
                     disabled={disabled}
                     getRowStatus={getRowStatus(set.id)}
+                    fillColumnKey="name"
+                    fillMinPx={80}
                   />
                 </div>
               </div>
@@ -239,4 +243,3 @@ export function SelectListGroupsPane({
     </>
   );
 }
-

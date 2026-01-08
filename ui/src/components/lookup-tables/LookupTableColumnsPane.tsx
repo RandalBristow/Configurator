@@ -16,7 +16,7 @@ type Props = {
 
   newRow: Partial<LookupTableColumn>;
   onNewRowChange: (key: keyof LookupTableColumn, value: any) => void;
-  onCommitNewRow: () => void;
+  onCommitNewRow: (draft?: LookupTableColumn) => void;
 
   getRowStatus: (row: LookupTableColumn) => "new" | "edited" | undefined;
 };

@@ -1,6 +1,5 @@
-import type React from "react";
-import { DataGrid, type DataGridColumn } from "../table/DataTable";
-import { GroupSetToolbar } from "./GroupSetToolbar";
+import type { DataGridColumn } from "../table/DataTable";
+import { RdgGrid } from "../table/RdgGrid";
 import type { SelectListProperty } from "../../types/domain";
 
 type Props = {
@@ -11,20 +10,13 @@ type Props = {
   rows: SelectListProperty[];
 
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
   onToggleSelectAll: (ids: string[]) => void;
 
   onRowChange: (id: string, key: keyof SelectListProperty, value: any) => void;
 
   newRow: Partial<SelectListProperty>;
   onNewRowChange: (key: keyof SelectListProperty, value: any) => void;
-  newRowRef: React.RefObject<HTMLTableRowElement | null>;
-  newRowFirstInputRef: React.RefObject<HTMLInputElement | null>;
-  onNewRowBlur: (e: React.FocusEvent<HTMLTableRowElement>) => void;
-
-  onClearSelection: () => void;
-  onCopySelected: () => void;
-  onDeleteSelected: () => void;
+  onCommitNewRow: (draft?: SelectListProperty) => void;
 
   getRowStatus: (row: SelectListProperty) => "new" | "edited" | undefined;
 };
@@ -35,73 +27,43 @@ export function SelectListPropertiesPane({
   columns,
   rows,
   selectedIds,
-  onToggleSelect,
   onToggleSelectAll,
   onRowChange,
   newRow,
   onNewRowChange,
-  newRowRef,
-  newRowFirstInputRef,
-  onNewRowBlur,
-  onClearSelection,
-  onCopySelected,
-  onDeleteSelected,
+  onCommitNewRow,
   getRowStatus,
 }: Props) {
   return (
     <>
-      <div className="muted small">Define additional columns for this list.</div>
-      {disabled && (
-        <div className="muted small" style={{ marginTop: 8 }}>
-          Save the select list to manage properties.
-        </div>
-      )}
-
-      <div style={{ marginTop: 8 }}>
-        <GroupSetToolbar
-          disabled={disabled}
-          hasSelection={selectedIds.size > 0}
-          onClearSelection={onClearSelection}
-          onCopySelected={onCopySelected}
-          onDeleteSelected={onDeleteSelected}
-        />
-      </div>
-
       {isLoading && (
-        <div className="muted small" style={{ marginTop: 10 }}>
+        <div className="muted small" style={{ padding: 12 }}>
           Loading properties...
         </div>
       )}
       {!isLoading && rows.length === 0 && (
-        <div className="muted small" style={{ marginTop: 10 }}>
+        <div className="muted small" style={{ padding: 12 }}>
           No properties yet.
         </div>
       )}
 
-      <div style={{ marginTop: 8 }}>
-        <DataGrid
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <RdgGrid
           columns={columns}
           rows={rows}
-          getRowId={(row) => row.id}
           selectedIds={selectedIds}
-          onToggleSelect={onToggleSelect}
           onToggleSelectAll={onToggleSelectAll}
           onRowChange={onRowChange}
-          isRowReadOnly={(row) => row.id.startsWith("default-prop-")}
-          isRowSelectable={(row) => !row.id.startsWith("default-prop-")}
           newRow={newRow}
           onNewRowChange={onNewRowChange}
-          newRowRef={newRowRef}
-          newRowFirstInputRef={newRowFirstInputRef}
-          onNewRowBlur={onNewRowBlur}
-          enableFilters
-          enableSorting={false}
+          onCommitNewRow={onCommitNewRow}
           showNewRow={!disabled}
-          getRowStatus={getRowStatus}
           disabled={disabled}
+          getRowStatus={getRowStatus}
+          fillColumnKey="key"
+          fillMinPx={80}
         />
       </div>
     </>
   );
 }
-

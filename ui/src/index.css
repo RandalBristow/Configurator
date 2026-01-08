@@ -1325,6 +1325,14 @@ a {
   flex: 1;
   padding: 12px;
 }
+/* Add extra scroll space below the Select Lists grid so the last/new row
+   can be scrolled up into the viewport (approx half the viewport height). */
+.select-list-main .rdg-container::after {
+  content: "";
+  display: block;
+  height: 50vh;
+  pointer-events: none;
+}
 .card.full-width {
   flex: 1;
   display: flex;
@@ -1556,6 +1564,7 @@ a {
   border: 1px solid var(--card-border);
   border-radius: 0;
   box-sizing: border-box;
+  
 }
 
 .rdg-grid--app .rdg-header-row {
@@ -1573,6 +1582,22 @@ a {
   align-items: center;
   gap: 6px;
   width: 100%;
+}
+.rdg-align-center {
+  justify-content: center;
+  text-align: center;
+}
+.rdg-align-right {
+  justify-content: flex-end;
+  text-align: right;
+}
+.rdg-header-align-center .rdg-header-cell-inner {
+  justify-content: center;
+  text-align: center;
+}
+.rdg-header-align-right .rdg-header-cell-inner {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .rdg-grid--app .rdg-header-cell-label {
@@ -1664,6 +1689,31 @@ a {
 /* When a page wants the grid flush to the splitters (no main-area padding). */
 .center-pane--flush {
   margin: -12px;
+}
+.table-pane--flush {
+  margin-left: -12px;
+  margin-right: -12px;
+}
+.center-pane-controls {
+  padding: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.center-pane-grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+.center-pane-section {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
 }
 .side-pane-header {
   height: 38px;
@@ -1905,7 +1955,7 @@ a {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin: 8px 0;
+  margin: 15px 8px;
 }
 .pane-header-actions.row {
   flex-direction: row;
@@ -1957,7 +2007,8 @@ a {
 }
 
 .group-set-body {
-  padding: 10px;
+  padding-top: 6px;
+  padding-bottom: 0px;
 }
 
 .group-set-toolbar {
