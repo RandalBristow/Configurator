@@ -796,6 +796,7 @@ a {
   border-radius: 0 !important;
   -webkit-appearance: none;
   -moz-appearance: none;
+  appearance: none;
 }
 .data-table.dense textarea.table-input {
   min-height: 24px;

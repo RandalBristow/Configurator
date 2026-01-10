@@ -28,7 +28,7 @@ type GridProps<T> = {
 
   newRow: Partial<T>;
   onNewRowChange: (key: keyof T, value: any) => void;
-  onCommitNewRow?: () => void;
+  onCommitNewRow?: (draft?: T) => void;
 
   disabled?: boolean;
   getRowStatus?: (row: T) => "new" | "edited" | undefined;
@@ -117,6 +117,8 @@ export function LookupTableRowsRdgPane<T extends { id: string }>({
               newRow={grid.newRow}
               onNewRowChange={grid.onNewRowChange}
               onCommitNewRow={grid.onCommitNewRow}
+              showNewRow={!Boolean(grid.disabled ?? toolbar.disabled)}
+              newRowIdPrefix="local-row-"
               disabled={grid.disabled ?? toolbar.disabled}
               getRowStatus={grid.getRowStatus}
             />

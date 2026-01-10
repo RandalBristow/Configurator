@@ -272,14 +272,15 @@ export function useLookupTableRowsManager({
     return undefined;
   };
 
-  const commitNewRow = (tableIdOverride?: string) => {
+  const commitNewRow = (tableIdOverride?: string, draft?: LookupRowView) => {
     const tableId = tableIdOverride ?? currentTableId;
     if (!tableId) return null;
 
+    const source = draft ?? (newRow as any);
     const valuesByColId: Record<string, CellValue> = {};
     columns.forEach((c) => {
       const key = viewKeyForColumnId(c.id);
-      valuesByColId[c.id] = coerceValue(c.dataType, newRow[key]);
+      valuesByColId[c.id] = coerceValue(c.dataType, (source as any)[key]);
     });
 
     if (isBlank(valuesByColId)) {
@@ -287,12 +288,20 @@ export function useLookupTableRowsManager({
       return null;
     }
 
+    const resolvedId =
+      draft?.id && draft.id.startsWith("local-row-")
+        ? draft.id
+        : `local-row-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
     const pending = {
-      id: `local-row-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id: resolvedId,
       tableId,
       values: valuesByColId,
     };
-    setPendingAdds((prev) => [...prev, pending]);
+    setPendingAdds((prev) => {
+      if (prev.some((r) => r.id === pending.id)) return prev;
+      return [...prev, pending];
+    });
     setNewRow({});
     requestAnimationFrame(() => {
       newRowFirstInputRef.current?.focus();

@@ -54,6 +54,13 @@ type Props<T> = {
   getRowStatus?: (row: T) => "new" | "edited" | undefined;
 };
 
+type EditorNav = {
+  kind: "tab" | "enter" | "stay";
+  rowIdx: number;
+  colKey: string;
+  shiftKey?: boolean;
+};
+
 function SortIndicator({ dir }: { dir: "ASC" | "DESC" }) {
   return dir === "ASC" ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
 }
@@ -62,18 +69,26 @@ function NumberEditCell(props: any) {
   const key = String(props.column.key);
   const rowId = props.row?.id;
   const newRowId = props.newRowId;
+  const rowIdx = props.rowIdx as number;
   const selectOnFocus = props.selectOnFocus !== false;
   const onFocusHandled = props.onFocusHandled as undefined | (() => void);
+  const draftRow = props.draftRowRef?.current;
   const [localValue, setLocalValue] = useState<string>(() => {
-    const x = props.row?.[key];
+    const x =
+      props.row?.id === newRowId && draftRow?.id === newRowId
+        ? draftRow?.[key]
+        : props.row?.[key];
     return x === null || x === undefined ? "" : String(x);
   });
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const x = props.row?.[key];
+    const x =
+      props.row?.id === newRowId && draftRow?.id === newRowId
+        ? draftRow?.[key]
+        : props.row?.[key];
     setLocalValue(x === null || x === undefined ? "" : String(x));
-  }, [rowId, key, props.row]);
+  }, [rowId, key, newRowId, draftRow]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -105,6 +120,8 @@ function NumberEditCell(props: any) {
     if (cleaned === "") {
       const nextRow = { ...(props.row ?? {}), [key]: null };
       props.onRowChange(nextRow);
+      if (props.row?.id === newRowId)
+        props.onFirstNewRowEdit?.(nextRow, { kind: "stay", rowIdx, colKey: key } satisfies EditorNav);
       return;
     }
 
@@ -114,18 +131,23 @@ function NumberEditCell(props: any) {
     if (Number.isFinite(parsed)) {
       const nextRow = { ...(props.row ?? {}), [key]: parsed };
       props.onRowChange(nextRow);
+      if (props.row?.id === newRowId)
+        props.onFirstNewRowEdit?.(nextRow, { kind: "stay", rowIdx, colKey: key } satisfies EditorNav);
     }
   };
 
   const handleBlur = () => {
-    if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, key);
     props.onClose?.(true, false);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Tab" || event.key === "Enter") {
-      if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, key);
-      // close editor so grid advances selection / triggers pending reopen
+      const nav: EditorNav =
+        event.key === "Enter"
+          ? { kind: "enter", rowIdx, colKey: key }
+          : { kind: "tab", rowIdx, colKey: key, shiftKey: event.shiftKey };
+      if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, nav);
+      props.onNavigateAfterClose?.(nav);
       props.onClose?.(true, false);
       event.preventDefault();
       return;
@@ -170,8 +192,14 @@ function NumberEditCell(props: any) {
 function SelectEditCell(props: any) {
   const key = String(props.column.key);
   const options = props.column?.editorOptions?.options ?? [];
-  const value = props.row?.[key] ?? "";
   const newRowId = props.newRowId;
+  const draftRow = props.draftRowRef?.current;
+  const rawValue =
+    props.row?.id === newRowId && draftRow?.id === newRowId
+      ? draftRow?.[key]
+      : props.row?.[key];
+  const value = rawValue ?? "";
+  const rowIdx = props.rowIdx as number;
   const selectRef = useRef<HTMLSelectElement | null>(null);
 
   useLayoutEffect(() => {
@@ -186,10 +214,23 @@ function SelectEditCell(props: any) {
       onChange={(e) => {
         const nextRow = { ...(props.row ?? {}), [key]: e.target.value };
         props.onRowChange(nextRow);
+        if (props.row?.id === newRowId)
+          props.onFirstNewRowEdit?.(nextRow, { kind: "stay", rowIdx, colKey: key } satisfies EditorNav);
       }}
       onBlur={() => {
-        if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, key);
         props.onClose?.(true, false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Tab" || event.key === "Enter") {
+          const nav: EditorNav =
+            event.key === "Enter"
+              ? { kind: "enter", rowIdx, colKey: key }
+              : { kind: "tab", rowIdx, colKey: key, shiftKey: event.shiftKey };
+          if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, nav);
+          props.onNavigateAfterClose?.(nav);
+          props.onClose?.(true, false);
+          event.preventDefault();
+        }
       }}
     >
       {options.map((o: any) => (
@@ -205,18 +246,26 @@ function TextEditCell(props: any) {
   const key = String(props.column.key);
   const rowId = props.row?.id;
   const newRowId = props.newRowId;
+  const rowIdx = props.rowIdx as number;
   const selectOnFocus = props.selectOnFocus !== false;
   const onFocusHandled = props.onFocusHandled as undefined | (() => void);
+  const draftRow = props.draftRowRef?.current;
   const [localValue, setLocalValue] = useState<string>(() => {
-    const x = props.row?.[key];
+    const x =
+      props.row?.id === newRowId && draftRow?.id === newRowId
+        ? draftRow?.[key]
+        : props.row?.[key];
     return x === null || x === undefined ? "" : String(x);
   });
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const x = props.row?.[key];
+    const x =
+      props.row?.id === newRowId && draftRow?.id === newRowId
+        ? draftRow?.[key]
+        : props.row?.[key];
     setLocalValue(x === null || x === undefined ? "" : String(x));
-  }, [rowId, key, props.row]);
+  }, [rowId, key, newRowId, draftRow]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -235,7 +284,6 @@ function TextEditCell(props: any) {
   }, [rowId, key]);
 
   const handleBlur = () => {
-    if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, key);
     props.onClose?.(true, false);
   };
 
@@ -249,15 +297,22 @@ function TextEditCell(props: any) {
         setLocalValue(nextText);
         const nextRow = { ...(props.row ?? {}), [key]: nextText };
         props.onRowChange(nextRow);
+        if (props.row?.id === newRowId)
+          props.onFirstNewRowEdit?.(nextRow, { kind: "stay", rowIdx, colKey: key } satisfies EditorNav);
       }}
       onBlur={handleBlur}
       onKeyDown={(event) => {
-            if (event.key === "Tab" || event.key === "Enter") {
-              if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, key);
-              props.onClose?.(true, false);
-              event.preventDefault();
-              return;
-            }
+        if (event.key === "Tab" || event.key === "Enter") {
+          const nav: EditorNav =
+            event.key === "Enter"
+              ? { kind: "enter", rowIdx, colKey: key }
+              : { kind: "tab", rowIdx, colKey: key, shiftKey: event.shiftKey };
+          if (props.row?.id === newRowId) props.onFirstNewRowEdit?.(props.row, nav);
+          props.onNavigateAfterClose?.(nav);
+          props.onClose?.(true, false);
+          event.preventDefault();
+          return;
+        }
       }}
     />
   );
@@ -291,9 +346,6 @@ export function RdgGrid<T extends { id: string }>({
     string | null
   >(null);
   const newRowDirtyRef = useRef(false);
-  const commitNewRowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
   const effectiveNewRowIdPrefix = newRowIdPrefix ?? DEFAULT_NEW_ROW_ID_PREFIX;
   const makeNewRowId = useCallback(
     () => generateNewRowId(effectiveNewRowIdPrefix),
@@ -302,21 +354,16 @@ export function RdgGrid<T extends { id: string }>({
   const [newRowId, setNewRowId] = useState<string>(() =>
     generateNewRowId(effectiveNewRowIdPrefix)
   );
+  const [nextNewRowId, setNextNewRowId] = useState<string | null>(null);
   const newRowIdRef = useRef(newRowId);
+  const nextNewRowIdRef = useRef<string | null>(nextNewRowId);
   useEffect(() => {
     newRowIdRef.current = newRowId;
   }, [newRowId]);
+  useEffect(() => {
+    nextNewRowIdRef.current = nextNewRowId;
+  }, [nextNewRowId]);
   const pendingReopenEditorRef = useRef<{
-    rowId: string;
-    colKey: string;
-  } | null>(null);
-  // A short-lived request recorded when the new-row draft is edited the
-  // first time. We don't populate `pendingReopenEditorRef` immediately,
-  // because an effect that watches `sortedRows` may run before the commit
-  // completes and would reopen the draft row instead of the freshly-created
-  // blank row. Instead we stash the request here and only set
-  // `pendingReopenEditorRef` after the commit (see `commitNewRowDraft`).
-  const pendingReopenRequestRef = useRef<{
     rowId: string;
     colKey: string;
   } | null>(null);
@@ -459,9 +506,22 @@ export function RdgGrid<T extends { id: string }>({
       baseRows = next;
     }
     if (!shouldShowNewRow) return baseRows;
-    const newRowModel = { id: newRowId, ...(newRow as any) } as T;
-    return [...baseRows, newRowModel];
-  }, [rows, optimisticCommittedRows, newRow, shouldShowNewRow, newRowId]);
+    const draftRowModel = { id: newRowId, ...(newRow as any) } as T;
+    if (!newRowDirty || !nextNewRowId) return [...baseRows, draftRowModel];
+    // When the draft row becomes dirty, show an additional blank row so the
+    // user can keep entering data without the last row being pinned to the
+    // bottom of the viewport.
+    const nextRowModel = { id: nextNewRowId } as T;
+    return [...baseRows, draftRowModel, nextRowModel];
+  }, [
+    rows,
+    optimisticCommittedRows,
+    newRow,
+    shouldShowNewRow,
+    newRowId,
+    newRowDirty,
+    nextNewRowId,
+  ]);
   rowsWithNewRowRef.current = rowsWithNewRow as T[];
 
   const filteredRowsWithNewRow = useMemo(() => {
@@ -470,8 +530,13 @@ export function RdgGrid<T extends { id: string }>({
     );
     if (!active.length) return rowsWithNewRow;
 
-    const data = rowsWithNewRow.filter((r) => r.id !== newRowId);
-    const newRowModel = rowsWithNewRow.find((r) => r.id === newRowId);
+    const data = rowsWithNewRow.filter(
+      (r) => r.id !== newRowId && r.id !== nextNewRowId
+    );
+    const draftRowModel = rowsWithNewRow.find((r) => r.id === newRowId);
+    const nextRowModel = nextNewRowId
+      ? rowsWithNewRow.find((r) => r.id === nextNewRowId)
+      : undefined;
 
     const filtered = data.filter((row) => {
       return active.every(([colKey, f]) => {
@@ -486,8 +551,11 @@ export function RdgGrid<T extends { id: string }>({
       });
     });
 
-    return newRowModel ? [...filtered, newRowModel] : filtered;
-  }, [rowsWithNewRow, filters, newRowId]);
+    const tail: T[] = [];
+    if (draftRowModel) tail.push(draftRowModel);
+    if (nextRowModel) tail.push(nextRowModel);
+    return tail.length ? [...filtered, ...tail] : filtered;
+  }, [rowsWithNewRow, filters, newRowId, nextNewRowId]);
 
   const sortedRows = useMemo(() => {
     const sort = sortColumns[0];
@@ -496,8 +564,13 @@ export function RdgGrid<T extends { id: string }>({
     const key = sort.columnKey;
     const dir = sort.direction === "ASC" ? 1 : -1;
 
-    const data = filteredRowsWithNewRow.filter((r) => r.id !== newRowId);
-    const newRowModel = filteredRowsWithNewRow.find((r) => r.id === newRowId);
+    const data = filteredRowsWithNewRow.filter(
+      (r) => r.id !== newRowId && r.id !== nextNewRowId
+    );
+    const draftRowModel = filteredRowsWithNewRow.find((r) => r.id === newRowId);
+    const nextRowModel = nextNewRowId
+      ? filteredRowsWithNewRow.find((r) => r.id === nextNewRowId)
+      : undefined;
 
     const sorted = data.slice().sort((a, b) => {
       const av = (a as any)[key];
@@ -510,8 +583,11 @@ export function RdgGrid<T extends { id: string }>({
       return String(av).localeCompare(String(bv)) * dir;
     });
 
-    return newRowModel ? [...sorted, newRowModel] : sorted;
-  }, [filteredRowsWithNewRow, sortColumns, newRowId]);
+    const tail: T[] = [];
+    if (draftRowModel) tail.push(draftRowModel);
+    if (nextRowModel) tail.push(nextRowModel);
+    return tail.length ? [...sorted, ...tail] : sorted;
+  }, [filteredRowsWithNewRow, sortColumns, newRowId, nextNewRowId]);
 
   const getNewRowDraft = useCallback(() => {
     const id = newRowIdRef.current;
@@ -522,10 +598,6 @@ export function RdgGrid<T extends { id: string }>({
   }, []);
 
   const commitNewRowDraft = useCallback(() => {
-    if (commitNewRowTimerRef.current) {
-      clearTimeout(commitNewRowTimerRef.current);
-      commitNewRowTimerRef.current = null;
-    }
     const draft = getNewRowDraft();
     if (draft) {
       setOptimisticCommittedRows((prev) => {
@@ -535,22 +607,11 @@ export function RdgGrid<T extends { id: string }>({
         return next;
       });
     }
-    const nextId = makeNewRowId();
-    newRowIdRef.current = nextId;
-    setNewRowId(nextId);
-    // If there was a prior request to reopen the editor (the user edited the
-    // draft), convert that request into a real pending-reopen entry that
-    // points at the freshly-created blank row. We set the real
-    // `pendingReopenEditorRef` only after creating `nextId` so the effect
-    // which watches `sortedRows` won't reopen the draft row prematurely.
-    if (pendingReopenRequestRef.current) {
-      const targetRowId = draft?.id ?? nextId;
-      pendingReopenEditorRef.current = {
-        rowId: targetRowId,
-        colKey: pendingReopenRequestRef.current.colKey,
-      };
-      pendingReopenRequestRef.current = null;
-    }
+    // Promote the "next" blank row to become the active draft row.
+    const promotedId = nextNewRowIdRef.current ?? makeNewRowId();
+    newRowIdRef.current = promotedId;
+    setNewRowId(promotedId);
+    setNextNewRowId(null);
     gridRef.current.onCommitNewRow?.(draft);
     newRowDirtyRef.current = false;
     setNewRowDirty(false);
@@ -558,41 +619,77 @@ export function RdgGrid<T extends { id: string }>({
   }, [getNewRowDraft, makeNewRowId]);
 
   const scheduleCommitOnFirstEdit = useCallback(
-    (draft: T, colKey?: string) => {
+    (draft: T, nav?: EditorNav) => {
       if (!shouldShowNewRow) return;
-      if (newRowDirtyRef.current) return;
-      if (colKey && colKey.trim()) {
-        pendingReopenRequestRef.current = { rowId: (draft as any).id, colKey };
-      }
       newRowDraftRef.current = draft as any;
+      if (newRowDirtyRef.current) return;
       newRowDirtyRef.current = true;
       setNewRowDirty(true);
-      commitNewRowTimerRef.current = setTimeout(() => {
-        commitNewRowTimerRef.current = null;
-        commitNewRowDraft();
-      }, 0);
-
-      // Special-case single-data-column grids: move selection to the next row
-      // so the grid's selection change flows and the pending reopen/commit
-      // behavior will open the editor on the next new row.
-      try {
-        const dataCols = dataColumnKeys.length;
-        if (dataCols === 1) {
-          const rowIdx = sortedRows.findIndex((r) => r.id === (draft as any).id);
-          const nextRowIdx = Math.min(rowIdx + 1, Math.max(0, sortedRows.length - 1));
-          const colIdx = rdgColumnsRef.current.findIndex(
-            (col) => String(col.key) === (colKey ?? dataColumnKeys[0])
-          );
-          if (colIdx !== -1 && typeof nextRowIdx === "number") {
-            // Move selection to next row (don't enable editor here).
-            dataGridRef.current?.selectCell({ rowIdx: nextRowIdx, idx: colIdx }, { enableEditor: false, shouldFocusCell: true });
-          }
-        }
-      } catch (e) {
-        // swallow any errors; this is best-effort UX improvement
+      if (!nextNewRowIdRef.current) {
+        const nextId = makeNewRowId();
+        nextNewRowIdRef.current = nextId;
+        setNextNewRowId(nextId);
+      }
+      if (nav?.kind === "stay") {
+        pendingReopenEditorRef.current = {
+          rowId: draft.id,
+          colKey: String(nav.colKey),
+        };
       }
     },
-    [commitNewRowDraft, shouldShowNewRow]
+    [shouldShowNewRow, makeNewRowId]
+  );
+
+  const queueNavigateAfterClose = useCallback(
+    (nav: EditorNav) => {
+      const fromIdx = rdgColumnsRef.current.findIndex(
+        (c) => String(c.key) === String(nav.colKey)
+      );
+      if (fromIdx === -1) return;
+
+      const firstDataKey = dataColumnKeys[0];
+      const lastDataKey = lastDataColumnKey;
+      const firstIdx = rdgColumnsRef.current.findIndex(
+        (c) => String(c.key) === String(firstDataKey)
+      );
+      const lastIdx = rdgColumnsRef.current.findIndex(
+        (c) => String(c.key) === String(lastDataKey)
+      );
+      if (firstIdx === -1 || lastIdx === -1) return;
+
+      let targetRowIdx = nav.rowIdx;
+      let targetColIdx = fromIdx;
+
+      if (nav.kind === "enter") {
+        targetRowIdx = nav.rowIdx + 1;
+      } else if (nav.kind === "tab") {
+        const delta = nav.shiftKey ? -1 : 1;
+        targetColIdx = fromIdx + delta;
+        if (targetColIdx > lastIdx) {
+          targetColIdx = firstIdx;
+          targetRowIdx = nav.rowIdx + 1;
+        } else if (targetColIdx < firstIdx) {
+          targetColIdx = lastIdx;
+          targetRowIdx = nav.rowIdx - 1;
+        }
+      }
+
+      targetRowIdx = Math.max(0, Math.min(sortedRows.length - 1, targetRowIdx));
+      const targetKey = String(rdgColumnsRef.current[targetColIdx]?.key ?? "");
+      if (!targetKey) return;
+
+      const type = colTypeByKey.get(targetKey);
+      const enableEditor = type !== "boolean" && targetKey !== "__status" && targetKey !== "select-row";
+
+      setTimeout(() => {
+        dataGridRef.current?.selectCell(
+          { rowIdx: targetRowIdx, idx: targetColIdx },
+          { enableEditor, shouldFocusCell: true }
+        );
+        dataGridRef.current?.scrollToCell({ rowIdx: targetRowIdx, idx: targetColIdx });
+      }, 0);
+    },
+    [sortedRows.length, dataColumnKeys, lastDataColumnKey, colTypeByKey]
   );
 
   useEffect(() => {
@@ -789,7 +886,7 @@ export function RdgGrid<T extends { id: string }>({
       headerCellClass: "rdg-status-header",
       cellClass: "rdg-status-cell",
       renderCell: ({ row }) => {
-        if (row.id === newRowId) return null;
+        if (row.id === newRowId || row.id === nextNewRowId) return null;
         const status =
           gridRef.current.getRowStatus?.(row) ??
           (optimisticRowIdSet.has(row.id) ? "new" : undefined);
@@ -877,7 +974,9 @@ export function RdgGrid<T extends { id: string }>({
             <SelectEditCell
               {...props}
               onFirstNewRowEdit={scheduleCommitOnFirstEdit}
+              onNavigateAfterClose={queueNavigateAfterClose}
               newRowId={newRowId}
+              draftRowRef={newRowDraftRef}
               column={{
                 ...props.column,
                 editorOptions: { options: c.options },
@@ -921,6 +1020,13 @@ export function RdgGrid<T extends { id: string }>({
                           c.key as any,
                           e.target.checked
                         );
+                        scheduleCommitOnFirstEdit(
+                          {
+                            ...(gridRef.current.newRow as any),
+                            id: newRowIdRef.current,
+                            [key]: e.target.checked,
+                          } as T
+                        );
                       } else {
                         gridRef.current.onRowChange(
                           row.id,
@@ -952,7 +1058,9 @@ export function RdgGrid<T extends { id: string }>({
             <NumberEditCell
               {...props}
               onFirstNewRowEdit={scheduleCommitOnFirstEdit}
+              onNavigateAfterClose={queueNavigateAfterClose}
               newRowId={newRowId}
+              draftRowRef={newRowDraftRef}
               selectOnFocus={
                 !(
                   suppressSelectOnFocusRef.current?.rowId === props.row?.id &&
@@ -990,17 +1098,13 @@ export function RdgGrid<T extends { id: string }>({
         editable,
         renderHeaderCell: headerNode,
         renderEditCell: (props: any) => {
-          const k = String(props.column.key);
-          const row = props.row ?? {};
-          const value = (row as any)[k];
-          const safeRow =
-            value === null || value === undefined ? { ...row, [k]: "" } : row;
           return (
             <TextEditCell
               {...props}
-              row={safeRow}
               onFirstNewRowEdit={scheduleCommitOnFirstEdit}
+              onNavigateAfterClose={queueNavigateAfterClose}
               newRowId={newRowId}
+              draftRowRef={newRowDraftRef}
               selectOnFocus={
                 !(
                   suppressSelectOnFocusRef.current?.rowId === props.row?.id &&
@@ -1038,7 +1142,10 @@ export function RdgGrid<T extends { id: string }>({
     lastDataColumnKey,
     resolvedFillKey,
     newRowId,
+    nextNewRowId,
     optimisticRowIdSet,
+    queueNavigateAfterClose,
+    scheduleCommitOnFirstEdit,
   ]);
   const rdgColumnsRef = useRef(rdgColumns);
   rdgColumnsRef.current = rdgColumns;
@@ -1053,12 +1160,6 @@ export function RdgGrid<T extends { id: string }>({
         if (row.id === newRowIdRef.current) {
           gridRef.current.onNewRowChange?.(colKey, value);
           newRowDraftRef.current = row as any;
-
-          // NEW: mark the new row as dirty so onSelectedCellChange will commit it
-          if (!newRowDirtyRef.current) {
-            newRowDirtyRef.current = true;
-            setNewRowDirty(true);
-          }
         } else {
           gridRef.current.onRowChange(row.id, colKey, value);
           if (optimisticCommittedRowsRef.current.has(row.id)) {
@@ -1081,13 +1182,16 @@ export function RdgGrid<T extends { id: string }>({
         });
       }
     },
-    [scheduleCommitOnFirstEdit]
+    []
   );
 
   const onSelectedRowsChange = useCallback((set: Set<any>) => {
     const ids = Array.from(set)
       .map(String)
-      .filter((id) => id !== newRowIdRef.current);
+      .filter(
+        (id) =>
+          id !== newRowIdRef.current && id !== (nextNewRowIdRef.current ?? "")
+      );
     gridRef.current.onToggleSelectAll(ids);
   }, []);
 
@@ -1162,7 +1266,11 @@ export function RdgGrid<T extends { id: string }>({
           columnWidths={effectiveColumnWidths}
           onColumnWidthsChange={setColumnWidths}
           selectedRows={selectedIds}
-          isRowSelectionDisabled={selectionDisabled ? () => true : undefined}
+          isRowSelectionDisabled={(row) =>
+            Boolean(selectionDisabled) ||
+            row.id === newRowIdRef.current ||
+            row.id === (nextNewRowIdRef.current ?? "")
+          }
           onSelectedRowsChange={onSelectedRowsChange}
           sortColumns={sortColumns}
           onSortColumnsChange={setSortColumns}

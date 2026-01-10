@@ -336,7 +336,7 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 onRowChange: rowsManager.handleRowChange,
                 newRow: rowsManager.newRow,
                 onNewRowChange: rowsManager.handleNewRowChange,
-                onCommitNewRow: () => void rowsManager.commitNewRow(),
+                onCommitNewRow: (draft) => void rowsManager.commitNewRow(undefined, draft),
                 disabled: isCreatingNew || !currentTableId,
                 getRowStatus: rowsManager.getRowStatus,
               }}
@@ -408,7 +408,7 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 onNewRowChange={(key, value) =>
                   columnsManager.setNewRow((prev) => ({ ...prev, [key]: value }))
                 }
-                onCommitNewRow={() => void columnsManager.commitNewRow()}
+                onCommitNewRow={(draft) => void columnsManager.commitNewRow(draft)}
                 getRowStatus={columnsManager.getRowStatus}
               />
             )}

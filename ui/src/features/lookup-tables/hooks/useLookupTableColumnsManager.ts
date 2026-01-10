@@ -113,10 +113,10 @@ export function useLookupTableColumnsManager({
     setNewRow({ name: "", dataType: "string", sortOrder: 0 });
   };
 
-  const finalizeNewRow = (tableIdOverride?: string) => {
+  const finalizeNewRow = (tableIdOverride?: string, draft?: LookupTableColumn) => {
     const tableId = tableIdOverride ?? currentTableId;
     if (!tableId) return null;
-    const name = newRow.name?.trim();
+    const name = (draft?.name ?? newRow.name)?.trim();
     if (!name) return null;
 
     const normalized = name.toLowerCase();
@@ -132,13 +132,19 @@ export function useLookupTableColumnsManager({
     }
 
     const pending: LookupTableColumn = {
-      id: `local-col-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id:
+        draft?.id && draft.id.startsWith("local-col-")
+          ? draft.id
+          : `local-col-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       tableId,
       name,
-      dataType: (newRow.dataType ?? "string") as LookupTableDataType,
-      sortOrder: Number(newRow.sortOrder) || 0,
+      dataType: (draft?.dataType ?? newRow.dataType ?? "string") as LookupTableDataType,
+      sortOrder: typeof draft?.sortOrder === "number" ? draft.sortOrder : Number(draft?.sortOrder ?? newRow.sortOrder) || 0,
     };
-    setPendingAdds((prev) => [...prev, pending]);
+    setPendingAdds((prev) => {
+      if (prev.some((c) => c.id === pending.id)) return prev;
+      return [...prev, pending];
+    });
     setNewRow({ name: "", dataType: "string", sortOrder: 0 });
     return pending;
   };
@@ -151,7 +157,7 @@ export function useLookupTableColumnsManager({
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [key]: value } }));
   };
 
-  const commitNewRow = () => finalizeNewRow();
+  const commitNewRow = (draft?: LookupTableColumn) => finalizeNewRow(undefined, draft);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {

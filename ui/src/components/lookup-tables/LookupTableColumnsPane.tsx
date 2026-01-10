@@ -61,6 +61,7 @@ export function LookupTableColumnsPane({
             onNewRowChange={onNewRowChange}
             onCommitNewRow={onCommitNewRow}
             showNewRow={!disabled}
+            newRowIdPrefix="local-col-"
             disabled={disabled}
             getRowStatus={getRowStatus}
           />
