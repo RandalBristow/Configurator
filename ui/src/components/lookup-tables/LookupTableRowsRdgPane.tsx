@@ -37,9 +37,14 @@ type GridProps<T> = {
 type Props<T> = {
   toolbar: ToolbarProps;
   grid: GridProps<T>;
+  isLoading?: boolean;
 };
 
-export function LookupTableRowsRdgPane<T extends { id: string }>({ toolbar, grid }: Props<T>) {
+export function LookupTableRowsRdgPane<T extends { id: string }>({
+  toolbar,
+  grid,
+  isLoading = false,
+}: Props<T>) {
   const { setRightToolbar } = useTabToolbar();
 
   const toolbarRef = useRef(toolbar);
@@ -91,18 +96,33 @@ export function LookupTableRowsRdgPane<T extends { id: string }>({ toolbar, grid
 
   return (
     <>
-      <RdgGrid<T>
-        columns={grid.columns}
-        rows={grid.rows}
-        selectedIds={grid.selectedIds}
-        onToggleSelectAll={grid.onToggleSelectAll}
-        onRowChange={grid.onRowChange}
-        newRow={grid.newRow}
-        onNewRowChange={grid.onNewRowChange}
-        onCommitNewRow={grid.onCommitNewRow}
-        disabled={grid.disabled ?? toolbar.disabled}
-        getRowStatus={grid.getRowStatus}
-      />
+      <div className="lookup-grid-wrapper">
+        {grid.columns.length === 0 ? (
+          <div className="grid-loading-placeholder" aria-live="polite">
+            <div className="grid-loading-spinner" />
+          </div>
+        ) : (
+          <>
+            {isLoading && (
+              <div className="grid-loading-overlay" aria-live="polite">
+                <div className="grid-loading-spinner" />
+              </div>
+            )}
+            <RdgGrid<T>
+              columns={grid.columns}
+              rows={grid.rows}
+              selectedIds={grid.selectedIds}
+              onToggleSelectAll={grid.onToggleSelectAll}
+              onRowChange={grid.onRowChange}
+              newRow={grid.newRow}
+              onNewRowChange={grid.onNewRowChange}
+              onCommitNewRow={grid.onCommitNewRow}
+              disabled={grid.disabled ?? toolbar.disabled}
+              getRowStatus={grid.getRowStatus}
+            />
+          </>
+        )}
+      </div>
     </>
   );
 }

@@ -43,6 +43,7 @@ type Props<T extends { id: string }> = {
     disabled?: boolean;
     getRowStatus?: (row: SelectListItem) => "new" | "edited" | undefined;
   };
+  isLoading?: boolean;
 };
 
 export function SelectListItemsTablePane<T extends SelectListItem>({
@@ -55,6 +56,7 @@ export function SelectListItemsTablePane<T extends SelectListItem>({
   selectedGroupOptions,
   toolbar,
   grid,
+  isLoading = false,
 }: Props<T>) {
   const { setRightToolbar } = useTabToolbar();
   const toolbarRef = useRef(toolbar);
@@ -151,21 +153,34 @@ export function SelectListItemsTablePane<T extends SelectListItem>({
       </div>
 
       <div className="center-pane-grid">
-        <RdgGrid
-          columns={grid.columns as any}
-          rows={grid.rows as any}
-          selectedIds={grid.selectedIds}
-          onToggleSelectAll={grid.onToggleSelectAll}
-          onRowChange={grid.onRowChange as any}
-          newRow={grid.newRow as any}
-          onNewRowChange={grid.onNewRowChange as any}
-          onCommitNewRow={grid.onCommitNewRow}
-          showNewRow
-          newRowIdPrefix="local-"
-          disabled={grid.disabled}
-          selectionDisabled={grid.selectionDisabled}
-          getRowStatus={grid.getRowStatus as any}
-        />
+        {grid.columns.length === 0 ? (
+          <div className="grid-loading-placeholder" aria-live="polite">
+            <div className="grid-loading-spinner" />
+          </div>
+        ) : (
+          <>
+            {isLoading && (
+              <div className="grid-loading-overlay" aria-live="polite">
+                <div className="grid-loading-spinner" />
+              </div>
+            )}
+            <RdgGrid
+              columns={grid.columns as any}
+              rows={grid.rows as any}
+              selectedIds={grid.selectedIds}
+              onToggleSelectAll={grid.onToggleSelectAll}
+              onRowChange={grid.onRowChange as any}
+              newRow={grid.newRow as any}
+              onNewRowChange={grid.onNewRowChange as any}
+              onCommitNewRow={grid.onCommitNewRow}
+              showNewRow
+              newRowIdPrefix="local-"
+              disabled={grid.disabled}
+              selectionDisabled={grid.selectionDisabled}
+              getRowStatus={grid.getRowStatus as any}
+            />
+          </>
+        )}
       </div>
     </div>
   );

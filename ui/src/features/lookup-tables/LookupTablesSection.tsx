@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useResizableSidePanel } from "../../hooks/useResizableSidePanel";
 import { lookupTablesApi } from "../../api/entities";
@@ -61,12 +61,14 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
     queryKey: ["lookup-table-columns", currentTableId],
     queryFn: () => (currentTableId ? lookupTablesApi.listColumns(currentTableId) : Promise.resolve([])),
     enabled: Boolean(currentTableId),
+    placeholderData: keepPreviousData,
   });
 
   const rowsQuery = useQuery({
     queryKey: ["lookup-table-rows", currentTableId],
     queryFn: () => (currentTableId ? lookupTablesApi.listRows(currentTableId) : Promise.resolve([])),
     enabled: Boolean(currentTableId),
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -338,6 +340,7 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 disabled: isCreatingNew || !currentTableId,
                 getRowStatus: rowsManager.getRowStatus,
               }}
+              isLoading={rowsQuery.isFetching || columnsQuery.isFetching}
             />
           </div>
         </>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "sonner";
 import { useResizableSidePanel } from "../../hooks/useResizableSidePanel";
@@ -96,6 +96,7 @@ export function SelectListItemsSection({
     queryFn: () =>
       currentListId ? selectListGroupsApi.listGroupSets(currentListId) : Promise.resolve([]),
     enabled: Boolean(currentListId),
+    placeholderData: keepPreviousData,
   });
 
   const propertiesQuery = useQuery({
@@ -103,12 +104,14 @@ export function SelectListItemsSection({
     queryFn: () =>
       currentListId ? selectListPropertiesApi.list(currentListId) : Promise.resolve([]),
     enabled: Boolean(currentListId),
+    placeholderData: keepPreviousData,
   });
 
   const itemsQuery = useQuery({
     queryKey: ["select-list-items", currentListId],
     queryFn: () => selectListItemsApi.list(currentListId, true),
     enabled: Boolean(currentListId),
+    placeholderData: keepPreviousData,
   });
 
   const itemPropertiesQuery = useQuery({
@@ -116,6 +119,7 @@ export function SelectListItemsSection({
     queryFn: () =>
       currentListId ? selectListItemPropertiesApi.list(currentListId) : Promise.resolve([]),
     enabled: Boolean(currentListId),
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -297,6 +301,7 @@ export function SelectListItemsSection({
         ? selectListGroupsApi.listMemberships(currentListId, groupsManager.selectedGroupId)
         : Promise.resolve([]),
     enabled: Boolean(currentListId && groupsManager.selectedGroupId),
+    placeholderData: keepPreviousData,
   });
 
   const handleRowChange = (
@@ -1184,6 +1189,7 @@ export function SelectListItemsSection({
                 disabled: isCreatingNew,
                 getRowStatus: (row) => getRowStatus(row),
               }}
+              isLoading={itemsQuery.isFetching || propertiesQuery.isFetching || itemPropertiesQuery.isFetching}
             />
           </div>
         </>

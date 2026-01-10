@@ -544,8 +544,9 @@ export function RdgGrid<T extends { id: string }>({
     // `pendingReopenEditorRef` only after creating `nextId` so the effect
     // which watches `sortedRows` won't reopen the draft row prematurely.
     if (pendingReopenRequestRef.current) {
+      const targetRowId = draft?.id ?? nextId;
       pendingReopenEditorRef.current = {
-        rowId: nextId,
+        rowId: targetRowId,
         colKey: pendingReopenRequestRef.current.colKey,
       };
       pendingReopenRequestRef.current = null;
@@ -609,6 +610,7 @@ export function RdgGrid<T extends { id: string }>({
       { rowIdx, idx: colIdx },
       { enableEditor: true, shouldFocusCell: true }
     );
+    dataGridRef.current?.scrollToCell({ rowIdx, idx: colIdx });
     pendingReopenEditorRef.current = null;
   }, [sortedRows]);
 
@@ -906,35 +908,30 @@ export function RdgGrid<T extends { id: string }>({
           renderHeaderCell: headerNode,
           renderCell: ({ row }) => {
             const checked = Boolean((row as any)[key]);
-            return (
-              <input
-                className="table-checkbox"
-                type="checkbox"
-                checked={checked}
-                disabled={allDisabled}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => {
-                  if (row.id === newRowId) {
-                    const nextRow = {
-                      ...(row as any),
-                      [key]: e.target.checked,
-                    };
-                    gridRef.current.onNewRowChange?.(
-                      c.key as any,
-                      e.target.checked
-                    );
-                    // scheduleCommitOnFirstEdit(nextRow as any);
-                  } else {
-                    gridRef.current.onRowChange(
-                      row.id,
-                      c.key,
-                      e.target.checked
-                    );
-                  }
-                }}
-              />
-            );
-          },
+                return (
+                  <input
+                    className="table-checkbox"
+                    type="checkbox"
+                    checked={checked}
+                    disabled={allDisabled}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      if (row.id === newRowId) {
+                        gridRef.current.onNewRowChange?.(
+                          c.key as any,
+                          e.target.checked
+                        );
+                      } else {
+                        gridRef.current.onRowChange(
+                          row.id,
+                          c.key,
+                          e.target.checked
+                        );
+                      }
+                    }}
+                  />
+                );
+            },
           ...(alignClass ? { cellClass: alignClass } : {}),
           ...(headerAlignClass ? { headerCellClass: headerAlignClass } : {}),
         };
@@ -1048,8 +1045,7 @@ export function RdgGrid<T extends { id: string }>({
 
   const onRowsChange = useCallback(
     (nextRows: T[], data: RowsChangeData<T>) => {
-      const colKey = data.column.key as keyof T;
-      const colKeyString = String(data.column.key);
+    const colKey = data.column.key as keyof T;
       const optimisticUpdates: Array<{ id: string; row: T }> = [];
       for (const idx of data.indexes) {
         const row = nextRows[idx];
