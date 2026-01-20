@@ -9,7 +9,7 @@ type Props = {
 
   header?: React.ReactNode;
   main: React.ReactNode;
-  inspector: React.ReactNode;
+  inspector?: React.ReactNode;
   children?: React.ReactNode;
 };
 
@@ -22,26 +22,33 @@ export function WorkspaceShell({
   inspector,
   children,
 }: Props) {
+  const hasInspector = inspector !== undefined && inspector !== null;
   return (
     <div className="select-list-screen">
       {header}
       <div
         className="inspector-shell"
         style={{
-          gridTemplateColumns: `minmax(0, 1fr) ${splitterSize}px ${panelSize}px`,
+          gridTemplateColumns: hasInspector
+            ? `minmax(0, 1fr) ${splitterSize}px ${panelSize}px`
+            : "minmax(0, 1fr)",
           columnGap: 0,
         }}
       >
         <div className="select-list-main">{main}</div>
 
-        <SidePanelSplitter
-          collapsed={false}
-          splitterSize={splitterSize}
-          onMouseDown={onSplitterMouseDown}
-          variant="flush"
-        />
+        {hasInspector ? (
+          <>
+            <SidePanelSplitter
+              collapsed={false}
+              splitterSize={splitterSize}
+              onMouseDown={onSplitterMouseDown}
+              variant="flush"
+            />
 
-        <WorkspaceInspectorPane>{inspector}</WorkspaceInspectorPane>
+            <WorkspaceInspectorPane>{inspector}</WorkspaceInspectorPane>
+          </>
+        ) : null}
       </div>
       {children}
     </div>

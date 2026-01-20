@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Braces, ListOrdered, Tag } from "lucide-react";
 import type { DataGridColumn } from "../../../components/table/DataTable";
 import { lookupTablesApi } from "../../../api/entities";
 import type { LookupTableColumn, LookupTableDataType } from "../../../types/domain";
@@ -41,19 +42,21 @@ export function useLookupTableColumnsManager({
 
   const gridColumns = useMemo<DataGridColumn<LookupTableColumn>[]>(
     () => [
-      { key: "name", header: "*Name", type: "string" },
+      { key: "name", header: "*Name", type: "string", headerIcon: createElement(Tag, { size: 14 }) },
       {
         key: "dataType",
         header: "*Data Type",
         type: "string",
         width: 140,
         options: typeOptions as Array<{ value: string; label: string }>,
+        headerIcon: createElement(Braces, { size: 14 }),
       },
       {
         key: "sortOrder",
         header: "Order",
         type: "number",
         align: "center",
+        headerIcon: createElement(ListOrdered, { size: 14 }),
       },
     ],
     [typeOptions],

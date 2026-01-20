@@ -50,12 +50,12 @@ Edit the various properties for components dropped on the form.
 - [ ] Position — Position of the component.
 - [ ] Size — The size of the component.
 
-**Attribute Editor**
-Attributes will be defined per option. When tying an attribute to a component, only the attributes of similar type will be available, e.g. checkbox can only accept attributes of type Boolean.
+**Variable Editor**
+Variables will be defined per option. When tying a variable to a component, only variables of similar type will be available, e.g. checkbox can only accept variables of type Boolean.
 
-- [ ] Name — The name of the attribute.
-- [ ] Data Type — The data type of the attribute (string, number, boolean, etc.).
-- [ ] Default Value — the value (if any) of the attribute before any operation is performed on it.
+- [ ] Name - The name of the variable.
+- [ ] Data Type - The data type of the variable (string, number, boolean, etc.).
+- [ ] Default Value - the value (if any) of the variable before any operation is performed on it.
 - [ ] Size — The size of the component.
 - [ ] More to come as the scope becomes clearer.
 

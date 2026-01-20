@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Braces, Tag } from "lucide-react";
 import type { DataGridColumn } from "../../../components/table/DataTable";
 import { selectListPropertiesApi } from "../../../api/entities";
 import type { SelectListProperty, SelectListPropertyType } from "../../../types/domain";
@@ -166,13 +167,14 @@ export function useSelectListPropertiesManager({
 
   const propertyColumns = useMemo<DataGridColumn<SelectListProperty>[]>(
     () => [
-      { key: "key", header: "*Name", type: "string" },
+      { key: "key", header: "*Name", type: "string", headerIcon: createElement(Tag, { size: 14 }) },
       {
         key: "dataType",
         header: "*Data Type",
         type: "string",
         width: 140,
         options: propertyTypeOptions as Array<{ value: string; label: string }>,
+        headerIcon: createElement(Braces, { size: 14 }),
       },
     ],
     [propertyTypeOptions],

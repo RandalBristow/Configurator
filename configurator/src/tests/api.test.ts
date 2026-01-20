@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "crypto";
 import request from "supertest";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { createApp } from "../api/app";
 import { prisma } from "../prisma/client";
 
@@ -13,10 +13,8 @@ const withApiKey = (req: request.Test) =>
 
 describe("API smoke tests", () => {
   const ids = {
-    category: "",
-    subcategory: "",
     option: "",
-    attribute: "",
+    variable: "",
   };
 
   afterAll(async () => {
@@ -29,69 +27,43 @@ describe("API smoke tests", () => {
     expect(res.body).toMatchObject({ status: "ok" });
   });
 
-  it("creates a category", async () => {
-    const res = await withApiKey(request(app).post("/api/categories")).send({
-      name: `TestCat-${randomUUID().slice(0, 6)}`,
-      description: "Test category",
-      order: 99,
-    });
-    expect(res.status).toBe(201);
-    ids.category = res.body.id;
-    expect(ids.category).toBeTruthy();
-  });
-
-  it("creates a subcategory under the category", async () => {
-    const res = await withApiKey(request(app).post("/api/subcategories")).send({
-      categoryId: ids.category,
-      name: `TestSub-${randomUUID().slice(0, 6)}`,
-      description: "Test subcategory",
-      sortOrder: 1,
-    });
-    expect(res.status).toBe(201);
-    ids.subcategory = res.body.id;
-    expect(ids.subcategory).toBeTruthy();
-  });
-
-  it("creates an option under the subcategory", async () => {
+  it("creates an option", async () => {
     const res = await withApiKey(request(app).post("/api/options")).send({
-      subcategoryId: ids.subcategory,
-      code: `OPT-${randomUUID().slice(0, 6)}`,
       name: "Test Option",
       description: "Test option",
-      sortOrder: 1,
+      isActive: true,
+      optionType: "simple",
     });
     expect(res.status).toBe(201);
     ids.option = res.body.id;
     expect(ids.option).toBeTruthy();
   });
 
-  it("creates an attribute under the option", async () => {
-    const res = await withApiKey(request(app).post("/api/attributes")).send({
+  it("creates a variable under the option", async () => {
+    const res = await withApiKey(request(app).post("/api/variables")).send({
       optionId: ids.option,
-      key: `attr_${randomUUID().slice(0, 6)}`,
-      label: "Test Attr",
+      name: `var_${randomUUID().slice(0, 6)}`,
+      description: "Test variable",
       dataType: "string",
       sortOrder: 1,
     });
     expect(res.status).toBe(201);
-    ids.attribute = res.body.id;
-    expect(ids.attribute).toBeTruthy();
+    ids.variable = res.body.id;
+    expect(ids.variable).toBeTruthy();
   });
 
-  it("deep-deletes a category", async () => {
-    const res = await withApiKey(
-      request(app).delete(`/api/categories/${ids.category}`),
-    );
+  it("deactivates an option and its variables", async () => {
+    const res = await withApiKey(request(app).delete(`/api/options/${ids.option}`));
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe(ids.category);
+    expect(res.body.id).toBe(ids.option);
+    expect(res.body.isActive).toBe(false);
 
-    const cat = await prisma.category.findUnique({ where: { id: ids.category } });
-    expect(cat).toBeNull();
-    const sub = await prisma.subcategory.findUnique({ where: { id: ids.subcategory } });
-    expect(sub).toBeNull();
     const opt = await prisma.option.findUnique({ where: { id: ids.option } });
-    expect(opt).toBeNull();
-    const attr = await prisma.attribute.findUnique({ where: { id: ids.attribute } });
-    expect(attr).toBeNull();
+    const variable = await prisma.variable.findUnique({ where: { id: ids.variable } });
+    expect(opt?.isActive).toBe(false);
+    expect(variable?.isActive).toBe(false);
+
+    if (variable) await prisma.variable.delete({ where: { id: ids.variable } });
+    if (opt) await prisma.option.delete({ where: { id: ids.option } });
   });
 });

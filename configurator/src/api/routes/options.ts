@@ -15,9 +15,9 @@ const asBool = (val: unknown) => val === true || val === "true";
 optionsRouter.get("/", validate({ query: optionQuery }), async (req, res, next) => {
   try {
     const includeInactive = asBool(req.query.includeInactive);
-    const subcategoryId = req.query.subcategoryId as string | undefined;
-    const args: { subcategoryId?: string; includeInactive?: boolean } = {};
-    if (subcategoryId) args.subcategoryId = subcategoryId;
+    const optionType = req.query.optionType as string | undefined;
+    const args: { optionType?: "simple" | "configured"; includeInactive?: boolean } = {};
+    if (optionType === "simple" || optionType === "configured") args.optionType = optionType;
     if (includeInactive !== undefined) args.includeInactive = includeInactive;
     const options = await optionsService.list(args);
     res.json(options);

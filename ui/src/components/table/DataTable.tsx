@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Filter } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ListFilter } from "lucide-react";
 import {
   ColumnFilterPopover,
   type ColumnFilterDraft,
@@ -15,6 +15,7 @@ export type DataGridColumn<T> = {
   enableSort?: boolean;
   filterLabel?: (value: any, row?: T) => string;
   options?: Array<{ value: string; label: string }>;
+  headerIcon?: ReactNode;
 };
 
 type DataGridProps<T> = {
@@ -63,6 +64,8 @@ const MIN_COLUMN_WIDTH_PX = 60;
 const MAX_AUTO_COLUMN_WIDTH_PX = 360;
 const SELECTION_COLUMN_WIDTH_PX = 34;
 const CHECKBOX_WIDTH_PX = 18;
+const HEADER_ICON_WIDTH_PX = 14;
+const HEADER_ICON_GAP_PX = 4;
 
 export function DataGrid<T>({
   columns,
@@ -100,7 +103,7 @@ export function DataGrid<T>({
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [sort, setSort] = useState<SortState<T>>(null);
-  const [filters, setFilters] = useState<Record<string, { text: string; values: string[] }>>({});
+  const [filters, setFilters] = useState<Record<string, ColumnFilterDraft>>({});
   const [filterMenu, setFilterMenu] = useState<ColumnFilterMenu | null>(null);
   const [containerWidthPx, setContainerWidthPx] = useState<number | null>(null);
   const [layoutMetrics, setLayoutMetrics] = useState<LayoutMetrics | null>(null);
@@ -191,11 +194,17 @@ export function DataGrid<T>({
           if (!filterValue) return true;
           const text = filterValue.text.trim().toLowerCase();
           const values = filterValue.values ?? [];
+          const valuesMode =
+            filterValue.valuesMode ?? (values.length > 0 ? "some" : "all");
           const cell = (row as any)[col.key];
           const value = cell === null || cell === undefined ? "" : String(cell);
           const target = value.toLowerCase();
           if (text && !target.includes(text)) return false;
-          if (values.length && !values.some((v) => v.toLowerCase() === target)) return false;
+          if (valuesMode === "none") return false;
+          if (valuesMode === "some") {
+            if (!values.length) return false;
+            if (!values.some((v) => v.toLowerCase() === target)) return false;
+          }
           return true;
         });
       });
@@ -229,7 +238,10 @@ export function DataGrid<T>({
   const openFilterMenu = (colKey: string, title: string, eventTarget: HTMLElement) => {
     const col = columns.find((c) => String(c.key) === colKey);
     if (!col) return;
-    const current = filters[colKey] ?? { text: "", values: [] };
+    const current = filters[colKey];
+    const currentValues = current?.values ?? [];
+    const currentValuesMode =
+      current?.valuesMode ?? (currentValues.length > 0 ? "some" : "all");
     const rect = eventTarget.getBoundingClientRect();
     const popWidth = 260;
     const popHeight = 300;
@@ -245,9 +257,46 @@ export function DataGrid<T>({
       if (!uniques.has(value)) uniques.set(value, label);
     });
 
+    const compareFilterOption = (a: { value: string; label: string }, b: { value: string; label: string }) => {
+      if (col.type === "number") {
+        const an = Number(a.value);
+        const bn = Number(b.value);
+        const aValid = Number.isFinite(an);
+        const bValid = Number.isFinite(bn);
+        if (aValid && bValid) return an - bn;
+        if (aValid) return -1;
+        if (bValid) return 1;
+      }
+      if (col.type === "datetime") {
+        const at = Date.parse(a.value);
+        const bt = Date.parse(b.value);
+        const aValid = Number.isFinite(at);
+        const bValid = Number.isFinite(bt);
+        if (aValid && bValid) return at - bt;
+        if (aValid) return -1;
+        if (bValid) return 1;
+      }
+      if (col.type === "boolean") {
+        const toBool = (value: string) => {
+          const v = value.trim().toLowerCase();
+          if (v === "true" || v === "1" || v === "yes") return 1;
+          if (v === "false" || v === "0" || v === "no") return 0;
+          return Number.NaN;
+        };
+        const av = toBool(a.value);
+        const bv = toBool(b.value);
+        const aValid = Number.isFinite(av);
+        const bValid = Number.isFinite(bv);
+        if (aValid && bValid) return av - bv;
+        if (aValid) return -1;
+        if (bValid) return 1;
+      }
+      return a.label.localeCompare(b.label);
+    };
+
     const values = Array.from(uniques.entries())
       .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .sort(compareFilterOption);
 
     setFilterMenu({
       colId: colKey,
@@ -255,8 +304,9 @@ export function DataGrid<T>({
       position: { x: left, y: top },
       values,
       draft: {
-        text: current.text ?? "",
-        values: current.values ?? [],
+        text: current?.text ?? "",
+        values: currentValues,
+        valuesMode: currentValuesMode,
       },
     });
   };
@@ -264,11 +314,12 @@ export function DataGrid<T>({
   const applyFilter = (draft: ColumnFilterDraft) => {
     if (!filterMenu) return;
     const text = draft.text.trim();
-    const values = draft.values;
-    const hasFilter = text.length > 0 || values.length > 0;
+    const values = draft.values ?? [];
+    const valuesMode = draft.valuesMode ?? (values.length > 0 ? "some" : "all");
+    const hasFilter = text.length > 0 || valuesMode === "none" || values.length > 0;
     setFilters((prev) => {
       const next = { ...prev };
-      if (hasFilter) next[filterMenu.colId] = { text, values };
+      if (hasFilter) next[filterMenu.colId] = { text, values, valuesMode };
       else delete next[filterMenu.colId];
       return next;
     });
@@ -317,13 +368,15 @@ export function DataGrid<T>({
 
     const headerTextWidth = measureTextWidth(col.header ?? "", metrics.headerFont);
     const canSort = enableSorting && col.enableSort !== false;
+    const headerIconWidth = col.headerIcon ? HEADER_ICON_WIDTH_PX + HEADER_ICON_GAP_PX : 0;
     const headerExtras =
       metrics.headerPaddingX +
       metrics.headerBorderX +
       metrics.resizerGutter +
       (enableFilters ? metrics.filterButtonWidth + metrics.thActionsGap : 0) +
       (canSort ? metrics.sortIndicatorWidth : 0) +
-      metrics.thInnerGap;
+      metrics.thInnerGap +
+      headerIconWidth;
     const headerWidth = Math.ceil(headerTextWidth + headerExtras);
 
     let maxCellText = 0;
@@ -604,6 +657,7 @@ export function DataGrid<T>({
             const indicator = isSorted ? (sort?.dir === "asc" ? "\u25B2" : "\u25BC") : "";
             const canSort = enableSorting && col.enableSort !== false;
             const filterActive = Boolean(filters[String(col.key)]);
+            const filterOpen = filterMenu?.colId === String(col.key);
             return (
               <th
                 key={String(col.key)}
@@ -627,13 +681,18 @@ export function DataGrid<T>({
               >
                 <div className="th-inner">
                   <span className="th-label">
-                    {col.header}
+                    {col.headerIcon && (
+                      <span className="th-icon" aria-hidden="true">
+                        {col.headerIcon}
+                      </span>
+                    )}
+                    <span className="th-text">{col.header}</span>
                     {indicator && <span className="th-sort">{indicator}</span>}
                   </span>
                   <span className="th-actions">
                     {enableFilters && (
                       <button
-                        className={`filter-btn ${filterActive ? "active" : ""}`}
+                        className={`filter-btn ${filterActive ? "active" : ""} ${filterOpen ? "is-open" : ""}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           openFilterMenu(String(col.key), col.header, e.currentTarget);
@@ -641,7 +700,7 @@ export function DataGrid<T>({
                         title="Filter"
                         type="button"
                       >
-                        <Filter size={14} />
+                        <ListFilter size={14} />
                       </button>
                     )}
                   </span>

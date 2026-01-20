@@ -1,38 +1,47 @@
-import type { Prisma, PrismaClient, Option } from "@prisma/client";
+import { Prisma, PrismaClient, type Option, type OptionType } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma/client";
 
 export type CreateOptionInput = {
-  subcategoryId: string;
-  code: string;
   name: string;
   description?: string | null;
-  sortOrder?: number;
   isActive?: boolean;
+  optionType: OptionType;
+  formDraft?: Prisma.InputJsonValue | null;
+  formPublished?: Prisma.InputJsonValue | null;
 };
 
 export type UpdateOptionInput = {
-  code?: string;
   name?: string;
   description?: string | null;
-  sortOrder?: number;
   isActive?: boolean;
+  optionType?: OptionType;
+  formDraft?: Prisma.InputJsonValue | null;
+  formPublished?: Prisma.InputJsonValue | null;
 };
 
 type PrismaClientOrTx = Prisma.TransactionClient | PrismaClient;
 const withClient = (client?: PrismaClientOrTx) => client ?? defaultPrisma;
 
+const mapNullableJson = (
+  value?: Prisma.InputJsonValue | null,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return value;
+};
+
 export async function listOptions(opts?: {
-  subcategoryId?: string;
+  optionType?: OptionType;
   includeInactive?: boolean;
   client?: PrismaClientOrTx;
 }): Promise<Option[]> {
   const client = withClient(opts?.client);
   return client.option.findMany({
     where: {
-      ...(opts?.subcategoryId ? { subcategoryId: opts.subcategoryId } : {}),
+      ...(opts?.optionType ? { optionType: opts.optionType } : {}),
       ...(opts?.includeInactive ? {} : { isActive: true }),
     },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    orderBy: [{ name: "asc" }, { createdAt: "asc" }],
   });
 }
 
@@ -44,14 +53,17 @@ export async function createOption(
   input: CreateOptionInput,
   client?: PrismaClientOrTx,
 ): Promise<Option> {
+  const formDraft = mapNullableJson(input.formDraft);
+  const formPublished = mapNullableJson(input.formPublished);
+
   return withClient(client).option.create({
     data: {
-      subcategoryId: input.subcategoryId,
-      code: input.code,
       name: input.name,
       description: input.description ?? null,
-      sortOrder: input.sortOrder ?? 0,
       isActive: input.isActive ?? true,
+      optionType: input.optionType,
+      ...(formDraft !== undefined ? { formDraft } : {}),
+      ...(formPublished !== undefined ? { formPublished } : {}),
     },
   });
 }
@@ -61,9 +73,20 @@ export async function updateOption(
   input: UpdateOptionInput,
   client?: PrismaClientOrTx,
 ): Promise<Option> {
+  const formDraft = mapNullableJson(input.formDraft);
+  const formPublished = mapNullableJson(input.formPublished);
+  const data: Prisma.OptionUpdateInput = {};
+
+  if (input.name !== undefined) data.name = input.name;
+  if (input.description !== undefined) data.description = input.description;
+  if (input.isActive !== undefined) data.isActive = input.isActive;
+  if (input.optionType !== undefined) data.optionType = input.optionType;
+  if (formDraft !== undefined) data.formDraft = formDraft;
+  if (formPublished !== undefined) data.formPublished = formPublished;
+
   return withClient(client).option.update({
     where: { id },
-    data: { ...input },
+    data,
   });
 }
 

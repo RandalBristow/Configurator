@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { OptionType, Prisma, PrismaClient } from "@prisma/client";
 import {
   createOption,
   deactivateOption,
@@ -12,16 +12,16 @@ type Client = Prisma.TransactionClient | PrismaClient;
 
 export const optionsService = {
   list: (opts?: {
-    subcategoryId?: string;
+    optionType?: OptionType;
     includeInactive?: boolean;
     client?: Client;
   }) => {
     const args: {
-      subcategoryId?: string;
+      optionType?: OptionType;
       includeInactive?: boolean;
       client?: Client;
     } = {};
-    if (opts?.subcategoryId) args.subcategoryId = opts.subcategoryId;
+    if (opts?.optionType) args.optionType = opts.optionType;
     if (opts?.includeInactive !== undefined) args.includeInactive = opts.includeInactive;
     if (opts?.client) args.client = opts.client;
     return listOptions(args);
@@ -37,11 +37,11 @@ export const optionsService = {
 
   deactivate: (id: string, client?: Client) => deactivateOption(id, client),
 
-  // Deactivate an option and its attributes.
+  // Deactivate an option and its variables.
   deactivateDeep: async (id: string, client?: PrismaClient) => {
     const prismaClient = client ?? (await import("../prisma/client")).prisma;
     return prismaClient.$transaction(async (tx) => {
-      await tx.attribute.updateMany({
+      await tx.variable.updateMany({
         where: { optionId: id },
         data: { isActive: false },
       });
@@ -56,7 +56,7 @@ export const optionsService = {
   activate: async (id: string, client?: PrismaClient) => {
     const prismaClient = client ?? (await import("../prisma/client")).prisma;
     return prismaClient.$transaction(async (tx) => {
-      await tx.attribute.updateMany({
+      await tx.variable.updateMany({
         where: { optionId: id },
         data: { isActive: true },
       });

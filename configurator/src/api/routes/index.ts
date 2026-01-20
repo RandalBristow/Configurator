@@ -1,8 +1,6 @@
 import { Router } from "express";
-import { categoriesRouter } from "./categories";
-import { subcategoriesRouter } from "./subcategories";
 import { optionsRouter } from "./options";
-import { attributesRouter } from "./attributes";
+import { variablesRouter } from "./variables";
 import { optionListsRouter } from "./optionLists";
 import { selectListItemsRouter } from "./selectListItems";
 import { selectListGroupsRouter } from "./selectListGroups";
@@ -12,10 +10,8 @@ import { lookupTablesRouter } from "./lookupTables";
 
 export const apiRouter = Router();
 
-apiRouter.use("/categories", categoriesRouter);
-apiRouter.use("/subcategories", subcategoriesRouter);
 apiRouter.use("/options", optionsRouter);
-apiRouter.use("/attributes", attributesRouter);
+apiRouter.use("/variables", variablesRouter);
 apiRouter.use("/select-lists", optionListsRouter);
 apiRouter.use("/select-list-items", selectListItemsRouter);
 apiRouter.use("/select-list-groups", selectListGroupsRouter);

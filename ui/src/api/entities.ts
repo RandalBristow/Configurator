@@ -1,50 +1,23 @@
 import { api } from "./client";
 import type {
-  Attribute,
-  Category,
   LookupTable,
   LookupTableColumn,
   LookupTableRow,
   Option,
+  OptionType,
   SelectList,
   SelectListGroupSet,
   SelectListItem,
   SelectListItemProperty,
   SelectListMembership,
   SelectListProperty,
-  Subcategory,
+  Variable,
 } from "../types/domain";
 
-export const categoriesApi = {
-  list: (includeInactive?: boolean) =>
-    api.get<Category[]>("/categories", { includeInactive }),
-  create: (data: Partial<Category>) => api.post<Category>("/categories", data),
-  update: (id: string, data: Partial<Category>) =>
-    api.put<Category>(`/categories/${id}`, data),
-  remove: (id: string) => api.del<Category>(`/categories/${id}`),
-  deleteSummary: (id: string) =>
-    api.get<{ subcategories: number; options: number; attributes: number }>(
-      `/categories/${id}/delete-summary`,
-    ),
-  activate: (id: string) => api.post<Category>(`/categories/${id}/activate`),
-};
-
-export const subcategoriesApi = {
-  list: (categoryId?: string, includeInactive?: boolean) =>
-    api.get<Subcategory[]>("/subcategories", { categoryId, includeInactive }),
-  create: (data: Partial<Subcategory>) =>
-    api.post<Subcategory>("/subcategories", data),
-  update: (id: string, data: Partial<Subcategory>) =>
-    api.put<Subcategory>(`/subcategories/${id}`, data),
-  remove: (id: string) => api.del<Subcategory>(`/subcategories/${id}`),
-  deleteSummary: (id: string) =>
-    api.get<{ options: number; attributes: number }>(`/subcategories/${id}/delete-summary`),
-  activate: (id: string) => api.post<Subcategory>(`/subcategories/${id}/activate`),
-};
-
 export const optionsApi = {
-  list: (subcategoryId?: string, includeInactive?: boolean) =>
-    api.get<Option[]>("/options", { subcategoryId, includeInactive }),
+  list: (optionType?: OptionType, includeInactive?: boolean) =>
+    api.get<Option[]>("/options", { optionType, includeInactive }),
+  get: (id: string) => api.get<Option>(`/options/${id}`),
   create: (data: Partial<Option>) => api.post<Option>("/options", data),
   update: (id: string, data: Partial<Option>) =>
     api.put<Option>(`/options/${id}`, data),
@@ -52,14 +25,14 @@ export const optionsApi = {
   activate: (id: string) => api.post<Option>(`/options/${id}/activate`),
 };
 
-export const attributesApi = {
+export const variablesApi = {
   list: (optionId?: string, includeInactive?: boolean) =>
-    api.get<Attribute[]>("/attributes", { optionId, includeInactive }),
-  create: (data: Partial<Attribute>) => api.post<Attribute>("/attributes", data),
-  update: (id: string, data: Partial<Attribute>) =>
-    api.put<Attribute>(`/attributes/${id}`, data),
-  remove: (id: string) => api.del<Attribute>(`/attributes/${id}`),
-  activate: (id: string) => api.post<Attribute>(`/attributes/${id}/activate`),
+    api.get<Variable[]>("/variables", { optionId, includeInactive }),
+  create: (data: Partial<Variable>) => api.post<Variable>("/variables", data),
+  update: (id: string, data: Partial<Variable>) =>
+    api.put<Variable>(`/variables/${id}`, data),
+  remove: (id: string) => api.del<Variable>(`/variables/${id}`),
+  activate: (id: string) => api.post<Variable>(`/variables/${id}/activate`),
 };
 
 export const selectListsApi = {

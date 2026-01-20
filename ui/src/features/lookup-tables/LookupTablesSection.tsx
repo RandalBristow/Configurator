@@ -20,21 +20,28 @@ import { Copy, Eraser, Trash2 } from "lucide-react";
 type Props = {
   tableId?: string;
   onSelectTable: (id?: string) => void;
+  metaDraft?: { name: string; description: string };
+  onMetaDraftChange?: (draft: { name: string; description: string }) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type LookupRowView = { id: string } & Record<string, any>;
 type SidePaneTab = "details" | "columns";
 
-export function LookupTablesSection({ tableId, onSelectTable }: Props) {
+export function LookupTablesSection({
+  tableId,
+  onSelectTable,
+  metaDraft,
+  onMetaDraftChange,
+  onDirtyChange,
+}: Props) {
   const qc = useQueryClient();
   const { setLeftToolbar } = useTabToolbar();
   const [currentTableId, setCurrentTableId] = useState<string | undefined>(tableId);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [lastSelectedTableId, setLastSelectedTableId] = useState<string | undefined>();
   const [sidePaneTab, setSidePaneTab] = useState<SidePaneTab>("columns");
 
-  const [tableName, setTableName] = useState("");
-  const [tableDescription, setTableDescription] = useState("");
+  const [internalTableName, setInternalTableName] = useState("");
+  const [internalTableDescription, setInternalTableDescription] = useState("");
 
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
@@ -73,17 +80,16 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
 
   useEffect(() => {
     setCurrentTableId(tableId);
-    if (tableId) setIsCreatingNew(false);
   }, [tableId]);
 
   // Auto-select first table when available
   useEffect(() => {
-    if (!currentTableId && !isCreatingNew && (tablesQuery.data?.length ?? 0) > 0) {
+    if (!currentTableId && (tablesQuery.data?.length ?? 0) > 0) {
       const first = tablesQuery.data![0].id;
       setCurrentTableId(first);
       onSelectTable(first);
     }
-  }, [tablesQuery.data, currentTableId, isCreatingNew, onSelectTable]);
+  }, [tablesQuery.data, currentTableId, onSelectTable]);
 
   const currentTable: LookupTable | undefined = useMemo(
     () => (tablesQuery.data ?? []).find((t) => t.id === currentTableId),
@@ -91,17 +97,41 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
   );
 
   useEffect(() => {
-    setTableName(currentTable?.name ?? "");
-    setTableDescription(currentTable?.description ?? "");
-  }, [currentTable]);
+    if (!currentTable || !onMetaDraftChange || metaDraft) return;
+    onMetaDraftChange({
+      name: currentTable.name ?? "",
+      description: currentTable.description ?? "",
+    });
+  }, [currentTable, metaDraft, onMetaDraftChange]);
+
+  useEffect(() => {
+    if (metaDraft && onMetaDraftChange) return;
+    setInternalTableName(currentTable?.name ?? "");
+    setInternalTableDescription(currentTable?.description ?? "");
+  }, [currentTable, metaDraft, onMetaDraftChange]);
+
+  const tableName = metaDraft?.name ?? internalTableName;
+  const tableDescription = metaDraft?.description ?? internalTableDescription;
+
+  const handleTableNameChange = (value: string) => {
+    if (onMetaDraftChange) {
+      onMetaDraftChange({ name: value, description: tableDescription });
+      return;
+    }
+    setInternalTableName(value);
+  };
+
+  const handleTableDescriptionChange = (value: string) => {
+    if (onMetaDraftChange) {
+      onMetaDraftChange({ name: tableName, description: value });
+      return;
+    }
+    setInternalTableDescription(value);
+  };
 
   useEffect(() => {
     setSidePaneTab("columns");
   }, [currentTableId]);
-
-  useEffect(() => {
-    if (isCreatingNew) setSidePaneTab("details");
-  }, [isCreatingNew]);
 
   const columnsManager = useLookupTableColumnsManager({
     currentTableId,
@@ -125,54 +155,17 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
   }, [rowsQuery.data, currentTableId]);
 
   const metaDirty =
-    (currentTable?.name ?? "") !== tableName || (currentTable?.description ?? "") !== tableDescription;
-
+    (currentTable?.name ?? "") !== tableName ||
+    (currentTable?.description ?? "") !== tableDescription;
   const hasUnsaved = metaDirty || columnsManager.hasChanges || rowsManager.hasChanges;
 
-  const resetToNewTable = () => {
-    setIsCreatingNew(true);
-    setLastSelectedTableId(currentTableId);
-    setCurrentTableId(undefined);
-    onSelectTable(undefined);
-    setTableName("");
-    setTableDescription("");
-  };
-
-  const handleStartNew = () => {
-    if (hasUnsaved) {
-      confirm({
-        title: "Start a new lookup table?",
-        description: "Unsaved changes will be lost.",
-        onConfirm: resetToNewTable,
-      });
-      return;
-    }
-    resetToNewTable();
-  };
-
-  const handleCancelNew = () => {
-    const performCancel = () => {
-      setIsCreatingNew(false);
-      const fallbackId = lastSelectedTableId ?? (tablesQuery.data?.[0]?.id ?? undefined);
-      if (fallbackId) {
-        setCurrentTableId(fallbackId);
-        onSelectTable(fallbackId);
-      }
-    };
-
-    if (hasUnsaved) {
-      confirm({
-        title: "Discard new lookup table?",
-        description: "Unsaved changes will be lost.",
-        onConfirm: performCancel,
-      });
-      return;
-    }
-    performCancel();
-  };
+  useEffect(() => {
+    onDirtyChange?.(hasUnsaved);
+    return () => onDirtyChange?.(false);
+  }, [hasUnsaved, onDirtyChange]);
 
   const handleFocusSelectAll = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
-  const columnsDisabled = isCreatingNew || !currentTableId;
+  const columnsDisabled = !currentTableId;
 
   const handleDeleteTable = () => {
     if (!currentTableId) return;
@@ -188,9 +181,11 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
           if (nextId) {
             setCurrentTableId(nextId);
             onSelectTable(nextId);
-            setIsCreatingNew(false);
           } else {
-            resetToNewTable();
+            setCurrentTableId(undefined);
+            onSelectTable(undefined);
+            setInternalTableName("");
+            setInternalTableDescription("");
           }
           toast.success("Lookup table deleted");
         } catch (err) {
@@ -218,7 +213,6 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
       }
 
       if (!id) throw new Error("Lookup table id not available");
-      setIsCreatingNew(false);
 
       if (columnsManager.hasChanges) {
         const refreshed = await columnsManager.persist(id);
@@ -267,40 +261,31 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
   };
 
   const leftActionsRef = useRef({
-    onNew: handleStartNew,
-    onCancel: handleCancelNew,
     onSave: handleSaveAll,
     onDelete: handleDeleteTable,
   });
 
   useEffect(() => {
     leftActionsRef.current = {
-      onNew: handleStartNew,
-      onCancel: handleCancelNew,
       onSave: handleSaveAll,
       onDelete: handleDeleteTable,
     };
-  }, [handleStartNew, handleCancelNew, handleSaveAll, handleDeleteTable]);
+  }, [handleSaveAll, handleDeleteTable]);
 
-  const onNew = useCallback(() => leftActionsRef.current.onNew(), []);
-  const onCancel = useCallback(() => leftActionsRef.current.onCancel(), []);
   const onSave = useCallback(() => leftActionsRef.current.onSave(), []);
   const onDelete = useCallback(() => leftActionsRef.current.onDelete(), []);
 
   const leftToolbarNode = useMemo(
     () => (
       <LookupTableObjectToolbar
-        isCreatingNew={isCreatingNew}
-        controlsDisabled={isCreatingNew}
+        controlsDisabled={false}
         saveDisabled={!tableName.trim()}
         deleteDisabled={!currentTableId}
-        onNew={onNew}
-        onCancel={onCancel}
         onSave={onSave}
         onDelete={onDelete}
       />
     ),
-    [isCreatingNew, tableName, currentTableId, onNew, onCancel, onSave, onDelete],
+    [tableName, currentTableId, onSave, onDelete],
   );
 
   useEffect(() => {
@@ -320,7 +305,7 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
               toolbar={{
                 selectedCount: rowsManager.selectedIds.size,
                 canReset: Boolean(currentTableId),
-                disabled: isCreatingNew || !currentTableId,
+                disabled: !currentTableId,
                 onImportClipboard: handleImportClipboard,
                 onImportFile: handleImportFile,
                 onClearSelection: rowsManager.clearSelection,
@@ -337,7 +322,7 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
                 newRow: rowsManager.newRow,
                 onNewRowChange: rowsManager.handleNewRowChange,
                 onCommitNewRow: (draft) => void rowsManager.commitNewRow(undefined, draft),
-                disabled: isCreatingNew || !currentTableId,
+                disabled: !currentTableId,
                 getRowStatus: rowsManager.getRowStatus,
               }}
               isLoading={rowsQuery.isFetching || columnsQuery.isFetching}
@@ -391,8 +376,8 @@ export function LookupTablesSection({ tableId, onSelectTable }: Props) {
               <LookupTableDetailsPane
                 tableName={tableName}
                 tableDescription={tableDescription}
-                onChangeName={setTableName}
-                onChangeDescription={setTableDescription}
+                onChangeName={handleTableNameChange}
+                onChangeDescription={handleTableDescriptionChange}
                 onFocusSelectAll={handleFocusSelectAll}
               />
             ) : (

@@ -1,0 +1,116 @@
+/* Chakra-like Switch Lookalike, strictly scoped to .switch-component */
+.switch-component {
+  /* Base switch track */
+  --switch-track-bg: hsl(var(--input));
+  --switch-track-bg-checked: hsl(var(--primary));
+  --switch-thumb-bg: #fff;
+  --switch-thumb-bg-checked: #fff;
+  /* --switch-track-border: 1px solid #cbd5e1; */
+  --switch-track-radius: 9999px;
+  --switch-thumb-radius: 9999px;
+  --switch-width: 40px;
+  --switch-height: 22px;
+  --switch-thumb-size: 18px;
+  --switch-gap: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--switch-gap);
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border: var(--switch-track-border) !important;
+  border-radius: 9999px;
+  box-sizing: border-box;
+  transition:
+    background 0.2s,
+    border 0.2s;
+  vertical-align: middle;
+}
+.switch-component[data-state="checked"] {
+  background: #3182ce !important;
+  border: 2px solid #3182ce !important;
+}
+.switch-component > button {
+  width: 40px;
+  height: 22px;
+  background: #304e76 !important;
+  border: 2px solid #cbd5e1 !important;
+  border-radius: 9999px !important;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  transition:
+    background 0.2s,
+    border 0.2s;
+}
+.switch-component[data-state="checked"] > button {
+  background: #3182ce !important;
+  border: 2px solid #3182ce !important;
+}
+.switch-component-thumb {
+  width: 18px;
+  height: 18px;
+  background: #fff !important;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translate(0, -50%);
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+.switch-component[data-state="checked"] .switch-component-thumb {
+  background: #fff !important;
+  transform: translate(18px, -50%);
+}
+.switch-component,
+.switch-component * {
+  /* Prevent dark mode from affecting dropped switches */
+  color-scheme: light !important;
+}
+.switch-component-label {
+  color: #222 !important;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: color 0.2s;
+}
+.switch-component-root {
+  background: #e2e8f0 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+.switch-component-root[data-state="checked"] {
+  background: #3182ce !important;
+}
+.switch-component-thumb {
+  background: #fff !important;
+}
+.switch-component-root[data-state="checked"] .switch-component-thumb {
+  background: #fff !important;
+}
+/* Remove all dark theme overrides for dropped switches */
+.dark .switch-component,
+.dark .switch-component * {
+  color-scheme: light !important;
+}
+.dark .switch-component-label {
+  color: #222 !important;
+}
+.dark .switch-component-root {
+  background: #e2e8f0 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+.dark .switch-component-root[data-state="checked"] {
+  background: #3182ce !important;
+}
+.dark .switch-component-thumb {
+  background: #fff !important;
+}
+.dark .switch-component-root[data-state="checked"] .switch-component-thumb {
+  background: #fff !important;
+}

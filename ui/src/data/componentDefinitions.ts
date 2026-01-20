@@ -1,0 +1,204 @@
+export const componentDefinitions = [
+  // Input Components
+  {
+    type: "TextField",
+    label: "Text Field",
+    icon: "TextFields",
+    category: "Input",
+    defaultSize: { width: 200, height: 54 },
+    resizable: { horizontal: true, vertical: false },
+    properties: [
+      { key: "label", label: "Label", type: "text", defaultValue: "Text Field", group: "Content", description: "The text displayed as the field's label above the input box." },
+      { key: "placeholder", label: "Placeholder", type: "text", defaultValue: "", group: "Content", description: "Hint text shown inside the input when it is empty." },
+      { key: "helperText", label: "Helper Text", type: "text", defaultValue: "", group: "Content", description: "Additional text displayed below the input for guidance or context." },
+      { key: "size", label: "Size", type: "select", defaultValue: "md", options: [{ label: "Small", value: "sm" }, { label: "Medium", value: "md" }, { label: "Large", value: "lg" }], group: "Appearance", description: "Controls the height and font size of the input field." },
+      { key: "isRequired", label: "Required", type: "boolean", defaultValue: false, group: "Validation", description: "Marks the field as required. The user must fill it out before submitting the form." },
+      { key: "isDisabled", label: "Disabled", type: "boolean", defaultValue: false, group: "State", description: "Disables the input, preventing user interaction." },
+      { key: "isReadOnly", label: "Read Only", type: "boolean", defaultValue: false, group: "State", description: "Makes the input read-only." },
+    ],
+  },
+  {
+    type: "Button",
+    label: "Button",
+    icon: "SmartButton",
+    category: "Input",
+    defaultSize: { width: 120, height: 40 },
+    resizable: { horizontal: true, vertical: true },
+    properties: [
+      { key: "text", label: "Text", type: "text", defaultValue: "Button", group: "Content", description: "The text displayed on the button." },
+      {
+        key: "variant", label: "Variant", type: "select", defaultValue: "solid", options: [
+          { label: "Solid", value: "solid" },
+          { label: "Outline", value: "outline" },
+          { label: "Ghost", value: "ghost" },
+          { label: "Link", value: "link" }
+        ], group: "Appearance", description: "Visual style of the button: solid, outline, ghost, or link."
+      },
+      {
+        key: "colorScheme", label: "Color Scheme", type: "select", defaultValue: "blue", options: [
+          { label: "Gray", value: "gray" },
+          { label: "Red", value: "red" },
+          { label: "Orange", value: "orange" },
+          { label: "Yellow", value: "yellow" },
+          { label: "Green", value: "green" },
+          { label: "Teal", value: "teal" },
+          { label: "Blue", value: "blue" },
+          { label: "Cyan", value: "cyan" },
+          { label: "Purple", value: "purple" },
+          { label: "Pink", value: "pink" },
+          { label: "LinkedIn", value: "linkedin" },
+          { label: "Facebook", value: "facebook" },
+          { label: "Messenger", value: "messenger" },
+          { label: "WhatsApp", value: "whatsapp" },
+          { label: "Twitter", value: "twitter" }
+        ], group: "Appearance", description: "The color scheme of the button."
+      },
+      {
+        key: "size", label: "Size", type: "select", defaultValue: "md", options: [
+          { label: "Small", value: "sm" },
+          { label: "Medium", value: "md" },
+          { label: "Large", value: "lg" }
+        ], group: "Appearance", description: "Controls the button's size and padding."
+      },
+      { key: "isLoading", label: "Loading", type: "boolean", defaultValue: false, group: "State", description: "Shows a loading spinner and disables the button." },
+      { key: "isDisabled", label: "Disabled", type: "boolean", defaultValue: false, group: "State", description: "Disables the button, preventing user interaction." },
+      { key: "leftIcon", label: "Left Icon", type: "icon", defaultValue: "", group: "Content", description: "Icon to display at the start of the button." },
+      { key: "rightIcon", label: "Right Icon", type: "icon", defaultValue: "", group: "Content", description: "Icon to display at the end of the button." },
+      { key: "href", label: "Link", type: "text", defaultValue: "", group: "Behavior", description: "If set, the button will render as a link (<a>) and navigate to this URL when clicked." },
+      {
+        key: "type", label: "Type", type: "select", defaultValue: "button", options: [
+          { label: "Button", value: "button" },
+          { label: "Submit", value: "submit" },
+          { label: "Reset", value: "reset" }
+        ], group: "Behavior", description: "The button's type attribute (button, submit, or reset)."
+      },
+    ],
+  },
+  {
+    type: "Checkbox",
+    label: "Checkbox",
+    icon: "CheckBox",
+    category: "Input",
+    defaultSize: { width: 42, height: 42 },
+    resizable: { horizontal: false, vertical: false },
+    properties: [
+      { key: "label", label: "Label", type: "text", defaultValue: "Checkbox", group: "Content", description: "The text label displayed next to the checkbox." },
+      { key: "isChecked", label: "Checked", type: "boolean", defaultValue: false, group: "State", description: "Sets whether the checkbox is checked by default." },
+      { key: "isIndeterminate", label: "Indeterminate", type: "boolean", defaultValue: false, group: "State", description: "Shows the checkbox in an indeterminate (partially checked) state." },
+      { key: "isDisabled", label: "Disabled", type: "boolean", defaultValue: false, group: "State", description: "Disables the checkbox, preventing user interaction." },
+      { key: "colorScheme", label: "Color Scheme", type: "select", defaultValue: "blue", options: [{ label: "Gray", value: "gray" }, { label: "Red", value: "red" }, { label: "Orange", value: "orange" }, { label: "Yellow", value: "yellow" }, { label: "Green", value: "green" }, { label: "Teal", value: "teal" }, { label: "Blue", value: "blue" }, { label: "Cyan", value: "cyan" }, { label: "Purple", value: "purple" }, { label: "Pink", value: "pink" }], group: "Appearance", description: "The color scheme of the checkbox." },
+      { key: "size", label: "Size", type: "select", defaultValue: "md", options: [{ label: "Small", value: "sm" }, { label: "Medium", value: "md" }, { label: "Large", value: "lg" }], group: "Appearance", description: "Controls the size of the checkbox." },
+    ],
+  },
+  {
+    type: "Select",
+    label: "Select",
+    icon: "ArrowDropDown",
+    category: "Input",
+    defaultSize: { width: 200, height: 56 },
+    resizable: { horizontal: true, vertical: false },
+    properties: [
+      { key: "label", label: "Label", type: "text", defaultValue: "Select", group: "Content", description: "The text label displayed above the select dropdown." },
+      { key: "options", label: "Options", type: "text", defaultValue: "Option 1,Option 2,Option 3", group: "Content", description: "Comma-separated list of options for the dropdown." },
+      { key: "size", label: "Size", type: "select", defaultValue: "md", options: [{ label: "Small", value: "sm" }, { label: "Medium", value: "md" }, { label: "Large", value: "lg" }], group: "Appearance", description: "Controls the height and font size of the select field." },
+      { key: "isDisabled", label: "Disabled", type: "boolean", defaultValue: false, group: "State", description: "Disables the select dropdown, preventing user interaction." },
+      { key: "isRequired", label: "Required", type: "boolean", defaultValue: false, group: "Validation", description: "Marks the field as required." },
+    ],
+  },
+  {
+    type: "Switch",
+    label: "Switch",
+    icon: "ToggleOn",
+    category: "Input",
+    defaultSize: { width: 120, height: 24 },
+    resizable: { horizontal: false, vertical: false },
+    properties: [
+      { key: "label", label: "Label", type: "text", defaultValue: "Switch", group: "Content", description: "The text label displayed next to the switch." },
+      { key: "isChecked", label: "Checked", type: "boolean", defaultValue: false, group: "State", description: "Sets whether the switch is on by default." },
+      { key: "isDisabled", label: "Disabled", type: "boolean", defaultValue: false, group: "State", description: "Disables the switch, preventing user interaction." },
+      { key: "colorScheme", label: "Color Scheme", type: "select", defaultValue: "blue", options: [{ label: "Gray", value: "gray" }, { label: "Red", value: "red" }, { label: "Orange", value: "orange" }, { label: "Yellow", value: "yellow" }, { label: "Green", value: "green" }, { label: "Teal", value: "teal" }, { label: "Blue", value: "blue" }, { label: "Cyan", value: "cyan" }, { label: "Purple", value: "purple" }, { label: "Pink", value: "pink" }], group: "Appearance", description: "The color scheme of the switch." },
+      { key: "size", label: "Size", type: "select", defaultValue: "md", options: [{ label: "Small", value: "sm" }, { label: "Medium", value: "md" }, { label: "Large", value: "lg" }], group: "Appearance", description: "Controls the size of the switch." },
+    ],
+  },
+  // Display Components
+  {
+    type: "Typography",
+    label: "Typography",
+    icon: "Title",
+    category: "Display",
+    defaultSize: { width: 200, height: 32 },
+    properties: [
+      { key: "text", label: "Text", type: "text", defaultValue: "Typography", group: "Content", description: "The text content to display." },
+      { key: "variant", label: "Variant", type: "select", defaultValue: "body1", options: [{ label: "H1", value: "h1" }, { label: "H2", value: "h2" }, { label: "H3", value: "h3" }, { label: "H4", value: "h4" }, { label: "H5", value: "h5" }, { label: "H6", value: "h6" }, { label: "Subtitle 1", value: "subtitle1" }, { label: "Subtitle 2", value: "subtitle2" }, { label: "Body 1", value: "body1" }, { label: "Body 2", value: "body2" }, { label: "Caption", value: "caption" }, { label: "Overline", value: "overline" }], group: "Appearance", description: "The style or hierarchy of the text (e.g., heading, body, caption)." },
+      { key: "color", label: "Color", type: "select", defaultValue: "text.primary", options: [{ label: "Primary", value: "primary" }, { label: "Secondary", value: "secondary" }, { label: "Text Primary", value: "text.primary" }, { label: "Text Secondary", value: "text.secondary" }, { label: "Error", value: "error" }], group: "Appearance", description: "The color of the text." },
+      { key: "align", label: "Align", type: "select", defaultValue: "left", options: [{ label: "Left", value: "left" }, { label: "Center", value: "center" }, { label: "Right", value: "right" }, { label: "Justify", value: "justify" }], group: "Layout", description: "Text alignment within its container." },
+    ],
+  },
+  {
+    type: "Chip",
+    label: "Chip",
+    icon: "Label",
+    category: "Display",
+    defaultSize: { width: 80, height: 32 },
+    properties: [
+      { key: "label", label: "Label", type: "text", defaultValue: "Chip", group: "Content", description: "The text displayed inside the chip." },
+      { key: "variant", label: "Variant", type: "select", defaultValue: "filled", options: [{ label: "Filled", value: "filled" }, { label: "Outlined", value: "outlined" }], group: "Appearance", description: "Visual style of the chip: filled or outlined." },
+      { key: "color", label: "Color", type: "select", defaultValue: "default", options: [{ label: "Default", value: "default" }, { label: "Primary", value: "primary" }, { label: "Secondary", value: "secondary" }, { label: "Success", value: "success" }, { label: "Error", value: "error" }, { label: "Warning", value: "warning" }, { label: "Info", value: "info" }], group: "Appearance", description: "The color theme of the chip." },
+      { key: "size", label: "Size", type: "select", defaultValue: "medium", options: [{ label: "Small", value: "small" }, { label: "Medium", value: "medium" }], group: "Appearance", description: "Controls the size of the chip." },
+      { key: "clickable", label: "Clickable", type: "boolean", defaultValue: false, group: "Behavior", description: "Makes the chip respond to click events." },
+      { key: "deletable", label: "Deletable", type: "boolean", defaultValue: false, group: "Behavior", description: "Displays a delete icon, allowing the chip to be removed." },
+    ],
+  },
+  {
+    type: "Divider",
+    label: "Divider",
+    icon: "HorizontalRule",
+    category: "Display",
+    defaultSize: { width: 200, height: 1 },
+    properties: [
+      { key: "orientation", label: "Orientation", type: "select", defaultValue: "horizontal", options: [{ label: "Horizontal", value: "horizontal" }, { label: "Vertical", value: "vertical" }], group: "Layout", description: "The direction of the divider: horizontal or vertical." },
+      { key: "variant", label: "Variant", type: "select", defaultValue: "fullWidth", options: [{ label: "Full Width", value: "fullWidth" }, { label: "Inset", value: "inset" }, { label: "Middle", value: "middle" }], group: "Appearance", description: "Visual style of the divider: full width, inset, or middle." },
+      { key: "flexItem", label: "Flex Item", type: "boolean", defaultValue: false, group: "Layout", description: "Stretches the divider to match the parent's flex container height." },
+    ],
+  },
+  // Layout Components
+  {
+    type: "Card",
+    label: "Card",
+    icon: "CropLandscape",
+    category: "Layout",
+    defaultSize: { width: 300, height: 200 },
+    isContainer: true,
+    properties: [
+      { key: "elevation", label: "Elevation", type: "number", defaultValue: 1, group: "Appearance", description: "Shadow depth of the card. Higher values create a more prominent shadow." },
+      { key: "variant", label: "Variant", type: "select", defaultValue: "elevation", options: [{ label: "Elevation", value: "elevation" }, { label: "Outlined", value: "outlined" }], group: "Appearance", description: "Visual style of the card: elevation (shadow) or outlined (border)." },
+      { key: "square", label: "Square", type: "boolean", defaultValue: false, group: "Appearance", description: "Removes the card's border radius for sharp corners." },
+    ],
+  },
+  {
+    type: "Paper",
+    label: "Paper",
+    icon: "Rectangle",
+    category: "Layout",
+    defaultSize: { width: 200, height: 150 },
+    isContainer: true,
+    properties: [
+      { key: "elevation", label: "Elevation", type: "number", defaultValue: 1, group: "Appearance", description: "Shadow depth of the paper. Higher values create a more prominent shadow." },
+      { key: "variant", label: "Variant", type: "select", defaultValue: "elevation", options: [{ label: "Elevation", value: "elevation" }, { label: "Outlined", value: "outlined" }], group: "Appearance", description: "Visual style of the paper: elevation (shadow) or outlined (border)." },
+      { key: "square", label: "Square", type: "boolean", defaultValue: false, group: "Appearance", description: "Removes the paper's border radius for sharp corners." },
+    ],
+  },
+  {
+    type: "Container",
+    label: "Container",
+    icon: "ViewAgenda",
+    category: "Layout",
+    defaultSize: { width: 400, height: 300 },
+    isContainer: true,
+    properties: [
+      { key: "maxWidth", label: "Max Width", type: "select", defaultValue: "lg", options: [{ label: "Extra Small", value: "xs" }, { label: "Small", value: "sm" }, { label: "Medium", value: "md" }, { label: "Large", value: "lg" }, { label: "Extra Large", value: "xl" }, { label: "False", value: false }], group: "Layout", description: "Sets the maximum width of the container." },
+      { key: "fixed", label: "Fixed", type: "boolean", defaultValue: false, group: "Layout", description: "If true, sets a fixed max-width instead of a fluid layout." },
+      { key: "disableGutters", label: "Disable Gutters", type: "boolean", defaultValue: false, group: "Layout", description: "Removes the default left and right padding (gutters)." },
+    ],
+  },
+];

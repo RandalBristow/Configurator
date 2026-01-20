@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { ChevronDown, ChevronUp, ListFilter } from "lucide-react";
 import {
   DataGrid,
   SelectColumn,
@@ -25,6 +25,10 @@ import {
 } from "./DataTableColumnFilterPopover";
 
 const DEFAULT_NEW_ROW_ID_PREFIX = "__new__-";
+const HEADER_ICON_WIDTH_PX = 14;
+const HEADER_ICON_GAP_PX = 6;
+const STATUS_COLUMN_WIDTH_PX = 5;
+const SELECTION_COLUMN_WIDTH_PX = 34;
 
 function generateNewRowId(prefix: string) {
   const token = `${Date.now().toString(36)}-${Math.random()
@@ -526,7 +530,7 @@ export function RdgGrid<T extends { id: string }>({
 
   const filteredRowsWithNewRow = useMemo(() => {
     const active = Object.entries(filters).filter(
-      ([_, f]) => f.text.trim().length > 0 || f.values.length > 0
+      ([_, f]) => f.text.trim().length > 0 || f.values.length > 0 || f.valuesMode === "none"
     );
     if (!active.length) return rowsWithNewRow;
 
@@ -546,7 +550,12 @@ export function RdgGrid<T extends { id: string }>({
         const text = f.text.trim().toLowerCase();
         if (text && !value.toLowerCase().includes(text)) return false;
 
-        if (f.values.length > 0 && !f.values.includes(value)) return false;
+        const valuesMode = f.valuesMode ?? (f.values.length > 0 ? "some" : "all");
+        if (valuesMode === "none") return false;
+        if (valuesMode === "some") {
+          if (f.values.length === 0) return false;
+          if (!f.values.includes(value)) return false;
+        }
         return true;
       });
     });
@@ -711,18 +720,20 @@ export function RdgGrid<T extends { id: string }>({
     pendingReopenEditorRef.current = null;
   }, [sortedRows]);
 
-  const headerAutoWidth = useCallback((header: string) => {
+  const headerAutoWidth = useCallback((header: string, hasIcon: boolean) => {
     const label = header ?? "";
     const charWidth = 7; // approx for 12.5px Inter
     const cellPadding = 16; // 8px left + 8px right
     const sortIcon = 18;
     const filterIcon = 24;
     const resizeHandle = 10;
+    const headerIcon = hasIcon ? HEADER_ICON_WIDTH_PX + HEADER_ICON_GAP_PX : 0;
     const base =
       label.length * charWidth +
       cellPadding +
       sortIcon +
       filterIcon +
+      headerIcon +
       resizeHandle;
     const min = 90;
     const max = 520;
@@ -733,7 +744,7 @@ export function RdgGrid<T extends { id: string }>({
     const map = new Map<string, number>();
     for (const c of columns) {
       const key = String(c.key);
-      const baseWidth = c.width ?? headerAutoWidth(c.header);
+      const baseWidth = c.width ?? headerAutoWidth(c.header, Boolean(c.headerIcon));
       map.set(key, baseWidth);
     }
     return map;
@@ -743,7 +754,7 @@ export function RdgGrid<T extends { id: string }>({
     if (!containerWidth || dataColumnKeys.length === 0 || !resolvedFillKey)
       return undefined;
 
-    const fixed = 6 + 34; // status + selection
+    const fixed = STATUS_COLUMN_WIDTH_PX + SELECTION_COLUMN_WIDTH_PX; // status + selection
     const other = dataColumnKeys
       .filter((k) => k !== resolvedFillKey)
       .reduce(
@@ -830,11 +841,62 @@ export function RdgGrid<T extends { id: string }>({
         if (values.size >= 200) break;
       }
 
+      const compareFilterOption = (
+        a: [string, string],
+        b: [string, string],
+      ) => {
+        const type = colDef?.type ?? "string";
+        const aValue = a[0];
+        const bValue = b[0];
+        if (type === "number") {
+          const an = Number(aValue);
+          const bn = Number(bValue);
+          const aValid = Number.isFinite(an);
+          const bValid = Number.isFinite(bn);
+          if (aValid && bValid) return an - bn;
+          if (aValid) return -1;
+          if (bValid) return 1;
+        }
+        if (type === "datetime") {
+          const at = Date.parse(aValue);
+          const bt = Date.parse(bValue);
+          const aValid = Number.isFinite(at);
+          const bValid = Number.isFinite(bt);
+          if (aValid && bValid) return at - bt;
+          if (aValid) return -1;
+          if (bValid) return 1;
+        }
+        if (type === "boolean") {
+          const toBool = (value: string) => {
+            const v = value.trim().toLowerCase();
+            if (v === "true" || v === "1" || v === "yes") return 1;
+            if (v === "false" || v === "0" || v === "no") return 0;
+            return Number.NaN;
+          };
+          const av = toBool(aValue);
+          const bv = toBool(bValue);
+          const aValid = Number.isFinite(av);
+          const bValid = Number.isFinite(bv);
+          if (aValid && bValid) return av - bv;
+          if (aValid) return -1;
+          if (bValid) return 1;
+        }
+        return a[1].localeCompare(b[1]);
+      };
+
       const options = Array.from(values.entries())
-        .sort((a, b) => a[1].localeCompare(b[1]))
+        .sort(compareFilterOption)
         .map(([value, label]) => ({ value, label: label || "(empty)" }));
 
-      const draft = filters[colKey] ?? { text: "", values: [] };
+      const existing = filters[colKey];
+      const existingValues = existing?.values ?? [];
+      const existingValuesMode =
+        existing?.valuesMode ?? (existingValues.length > 0 ? "some" : "all");
+      const draft = {
+        text: existing?.text ?? "",
+        values: existingValues,
+        valuesMode: existingValuesMode,
+      };
       setFilterMenu({
         colId: colKey,
         title,
@@ -853,8 +915,9 @@ export function RdgGrid<T extends { id: string }>({
         const next = { ...prev };
         const text = (draft.text ?? "").trim();
         const values = draft.values ?? [];
-        const hasFilter = text.length > 0 || values.length > 0;
-        if (hasFilter) next[filterMenu.colId] = { text, values };
+        const valuesMode = draft.valuesMode ?? (values.length > 0 ? "some" : "all");
+        const hasFilter = text.length > 0 || valuesMode === "none" || values.length > 0;
+        if (hasFilter) next[filterMenu.colId] = { text, values, valuesMode };
         else delete next[filterMenu.colId];
         return next;
       });
@@ -877,19 +940,20 @@ export function RdgGrid<T extends { id: string }>({
     const statusCol: Column<T> = {
       key: "__status",
       name: "",
-      width: 6,
-      minWidth: 6,
-      maxWidth: 6,
+      width: STATUS_COLUMN_WIDTH_PX,
+      minWidth: STATUS_COLUMN_WIDTH_PX,
+      maxWidth: STATUS_COLUMN_WIDTH_PX,
       frozen: true,
       resizable: false,
       sortable: false,
       headerCellClass: "rdg-status-header",
       cellClass: "rdg-status-cell",
       renderCell: ({ row }) => {
-        if (row.id === newRowId || row.id === nextNewRowId) return null;
-        const status =
+        if (row.id === nextNewRowId) return null;
+        let status =
           gridRef.current.getRowStatus?.(row) ??
           (optimisticRowIdSet.has(row.id) ? "new" : undefined);
+        if (row.id === newRowId && !newRowDirtyRef.current) status = undefined;
         const color =
           status === "new"
             ? "var(--indicator-new)"
@@ -897,7 +961,7 @@ export function RdgGrid<T extends { id: string }>({
             ? "var(--indicator-edited)"
             : "transparent";
         return (
-          <div style={{ width: "100%", height: "100%", background: color }} />
+          <div className="rdg-status-indicator" style={{ background: color }} />
         );
       },
     };
@@ -905,9 +969,9 @@ export function RdgGrid<T extends { id: string }>({
     const selectCol: Column<T> = {
       ...(SelectColumn as unknown as Column<T>),
       frozen: true,
-      width: 34,
-      minWidth: 34,
-      maxWidth: 34,
+      width: SELECTION_COLUMN_WIDTH_PX,
+      minWidth: SELECTION_COLUMN_WIDTH_PX,
+      maxWidth: SELECTION_COLUMN_WIDTH_PX,
       headerCellClass: "rdg-select-header",
       cellClass: "rdg-select-cell",
     };
@@ -915,14 +979,17 @@ export function RdgGrid<T extends { id: string }>({
     const cols: Column<T>[] = columns.map((c) => {
       const key = String(c.key);
       const isLastDataCol = key === lastDataColumnKey;
-      const baseWidth = c.width ?? headerAutoWidth(c.header);
+      const baseWidth = c.width ?? headerAutoWidth(c.header, Boolean(c.headerIcon));
       const sortable = c.enableSort !== false;
       const editable = !allDisabled;
       const maxWidth = 520;
       const resizeAllowed = !isLastDataCol && key !== resolvedFillKey;
       const filterActive = Boolean(
-        filters[key]?.text.trim() || (filters[key]?.values?.length ?? 0) > 0
+        filters[key]?.text.trim() ||
+          (filters[key]?.values?.length ?? 0) > 0 ||
+          filters[key]?.valuesMode === "none"
       );
+      const filterOpen = filterMenu?.colId === key;
       const alignClass =
         c.align === "center"
           ? "rdg-align-center"
@@ -938,6 +1005,11 @@ export function RdgGrid<T extends { id: string }>({
 
       const headerNode = ({ sortDirection }: any) => (
         <div className="rdg-header-cell-inner">
+          {c.headerIcon ? (
+            <span className="rdg-header-icon" aria-hidden="true">
+              {c.headerIcon}
+            </span>
+          ) : null}
           <span className="rdg-header-cell-label">{c.header}</span>
           {sortDirection ? (
             <span className="rdg-sort-indicator">
@@ -945,7 +1017,7 @@ export function RdgGrid<T extends { id: string }>({
             </span>
           ) : null}
           <button
-            className={`filter-btn ${filterActive ? "active" : ""}`}
+            className={`filter-btn ${filterActive ? "active" : ""} ${filterOpen ? "is-open" : ""}`}
             type="button"
             title="Filter"
             onClick={(e) => {
@@ -953,7 +1025,7 @@ export function RdgGrid<T extends { id: string }>({
               openFilterMenu(key, c.header, e.currentTarget);
             }}
           >
-            <Filter size={14} />
+            <ListFilter size={14} />
           </button>
         </div>
       );
@@ -1138,6 +1210,7 @@ export function RdgGrid<T extends { id: string }>({
     columns,
     headerAutoWidth,
     filters,
+    filterMenu,
     openFilterMenu,
     lastDataColumnKey,
     resolvedFillKey,
@@ -1277,7 +1350,7 @@ export function RdgGrid<T extends { id: string }>({
           onRowsChange={onRowsChange}
           onCellClick={onCellClick}
           enableVirtualization
-          headerRowHeight={32}
+          headerRowHeight={34}
           rowHeight={28}
           className="rdg-grid rdg-grid--app"
           onSelectedCellChange={onSelectedCellChange}

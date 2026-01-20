@@ -2,50 +2,12 @@ import { prisma } from "../prisma/client";
 
 async function main() {
   // Fixed IDs to keep seeds idempotent.
-  const categoryId = "00000000-0000-0000-0000-000000000111";
-  const subcategoryId = "00000000-0000-0000-0000-000000000222";
   const optionId = "00000000-0000-0000-0000-000000000333";
   const selectListId = "00000000-0000-0000-0000-000000000444";
   const optionListItem208Id = "00000000-0000-0000-0000-000000000445";
   const optionListItem480Id = "00000000-0000-0000-0000-000000000446";
-  const attributeVoltageId = "00000000-0000-0000-0000-000000000555";
-  const attributeHorsepowerId = "00000000-0000-0000-0000-000000000556";
-
-  await prisma.category.upsert({
-    where: { id: categoryId },
-    update: {
-      name: "Pumps",
-      description: "Pump stations",
-      order: 1,
-      isActive: true,
-    },
-    create: {
-      id: categoryId,
-      name: "Pumps",
-      description: "Pump stations",
-      order: 1,
-      isActive: true,
-    },
-  });
-
-  await prisma.subcategory.upsert({
-    where: { id: subcategoryId },
-    update: {
-      categoryId,
-      name: "Standard Pumps",
-      description: "Standard pump configurations",
-      sortOrder: 1,
-      isActive: true,
-    },
-    create: {
-      id: subcategoryId,
-      categoryId,
-      name: "Standard Pumps",
-      description: "Standard pump configurations",
-      sortOrder: 1,
-      isActive: true,
-    },
-  });
+  const globalVariableVoltageId = "00000000-0000-0000-0000-000000000555";
+  const optionVariableHorsepowerId = "00000000-0000-0000-0000-000000000556";
 
   await prisma.selectList.upsert({
     where: { id: selectListId },
@@ -101,65 +63,65 @@ async function main() {
   await prisma.option.upsert({
     where: { id: optionId },
     update: {
-      subcategoryId,
-      code: "PUMP_A",
       name: "Pump A",
       description: "Base pump option",
-      sortOrder: 1,
       isActive: true,
+      optionType: "configured",
     },
     create: {
       id: optionId,
-      subcategoryId,
-      code: "PUMP_A",
       name: "Pump A",
       description: "Base pump option",
-      sortOrder: 1,
       isActive: true,
+      optionType: "configured",
     },
   });
 
-  await prisma.attribute.upsert({
-    where: { id: attributeVoltageId },
+  await prisma.variable.upsert({
+    where: { id: globalVariableVoltageId },
     update: {
-      optionId,
-      key: "voltage",
-      label: "Voltage",
-      dataType: "enum",
-      selectListId,
+      optionId: null,
+      ownerKey: "global",
+      name: "global_voltage",
+      description: "Default voltage level",
+      dataType: "number",
+      defaultValue: 480,
       sortOrder: 1,
       isActive: true,
     },
     create: {
-      id: attributeVoltageId,
-      optionId,
-      key: "voltage",
-      label: "Voltage",
-      dataType: "enum",
-      selectListId,
+      id: globalVariableVoltageId,
+      optionId: null,
+      ownerKey: "global",
+      name: "global_voltage",
+      description: "Default voltage level",
+      dataType: "number",
+      defaultValue: 480,
       sortOrder: 1,
       isActive: true,
     },
   });
 
-  await prisma.attribute.upsert({
-    where: { id: attributeHorsepowerId },
+  await prisma.variable.upsert({
+    where: { id: optionVariableHorsepowerId },
     update: {
       optionId,
-      key: "motor_hp",
-      label: "Motor HP",
+      ownerKey: optionId,
+      name: "motor_hp",
+      description: "Motor horsepower",
       dataType: "number",
-      defaultExpression: null,
+      defaultValue: 10,
       sortOrder: 2,
       isActive: true,
     },
     create: {
-      id: attributeHorsepowerId,
+      id: optionVariableHorsepowerId,
       optionId,
-      key: "motor_hp",
-      label: "Motor HP",
+      ownerKey: optionId,
+      name: "motor_hp",
+      description: "Motor horsepower",
       dataType: "number",
-      defaultExpression: null,
+      defaultValue: 10,
       sortOrder: 2,
       isActive: true,
     },

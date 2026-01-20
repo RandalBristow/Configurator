@@ -1,40 +1,38 @@
-export type Category = {
-  id: string;
-  name: string;
-  description: string;
-  order: number;
-  isActive: boolean;
-};
+import type { DesignerFormDefinition } from "./designer";
 
-export type Subcategory = {
-  id: string;
-  categoryId: string;
-  name: string;
-  description?: string | null;
-  sortOrder: number;
-  isActive: boolean;
-};
+export type OptionType = "simple" | "configured";
 
 export type Option = {
   id: string;
-  subcategoryId: string;
-  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  optionType: OptionType;
+  formDraft?: DesignerFormDefinition | null;
+  formPublished?: DesignerFormDefinition | null;
+};
+
+export type VariableDataType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "datetime"
+  | "stringArray"
+  | "numberArray"
+  | "booleanArray"
+  | "datetimeArray"
+  | "collection";
+
+export type Variable = {
+  id: string;
+  optionId?: string | null;
+  ownerKey: string;
   name: string;
   description?: string | null;
   sortOrder: number;
   isActive: boolean;
-};
-
-export type Attribute = {
-  id: string;
-  optionId: string;
-  key: string;
-  label: string;
-  dataType: "string" | "number" | "boolean" | "enum" | "range" | "json";
-  selectListId?: string | null;
-  defaultExpression?: string | null;
-  sortOrder: number;
-  isActive: boolean;
+  dataType: VariableDataType;
+  defaultValue?: unknown | null;
 };
 
 export type SelectList = {

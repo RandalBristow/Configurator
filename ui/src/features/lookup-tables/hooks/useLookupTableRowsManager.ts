@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Calendar, Hash, ToggleRight, Type } from "lucide-react";
 import type { DataGridColumn } from "../../../components/table/DataTable";
 import { lookupTablesApi } from "../../../api/entities";
 import type { LookupTableColumn, LookupTableRow, LookupTableDataType } from "../../../types/domain";
@@ -10,6 +11,21 @@ type CellValue = string | number | boolean | null;
 type LookupRowView = { id: string } & Record<string, any>;
 
 const lookupTableSortCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+const HEADER_ICON_SIZE = 14;
+
+const iconForLookupDataType = (dataType: LookupTableDataType) => {
+  switch (dataType) {
+    case "number":
+      return createElement(Hash, { size: HEADER_ICON_SIZE });
+    case "boolean":
+      return createElement(ToggleRight, { size: HEADER_ICON_SIZE });
+    case "datetime":
+      return createElement(Calendar, { size: HEADER_ICON_SIZE });
+    default:
+      return createElement(Type, { size: HEADER_ICON_SIZE });
+  }
+};
 
 const viewKeyForColumnId = (columnId: string) => `col:${columnId}`;
 
@@ -256,6 +272,7 @@ export function useLookupTableRowsManager({
         key: (viewKeyForColumnId(c.id) as any) as keyof LookupRowView,
         header: c.name,
         type,
+        headerIcon: iconForLookupDataType(c.dataType),
       };
     });
   }, [columns]);

@@ -22,7 +22,7 @@ The company exists specifically to support the development, licensing, and poten
 
 ### What the Product Is
 A **configurable product platform** focused initially on **pump station configuration**, with:
-- Categories → Subcategories → Options → Attributes
+- Options + Variables (simple and configured options)
 - Dynamic option availability and requirements
 - Rule-driven behavior without hard-coded logic
 - Data-driven dropdowns, matrices, and expressions
@@ -76,7 +76,7 @@ The company exists specifically to support the development, licensing, and poten
 
 ### What the Product Is
 A **configurable product platform** focused initially on **pump station configuration**, with:
-- Categories → Subcategories → Options → Attributes
+- Options + Variables (simple and configured options)
 - Dynamic option availability and requirements
 - Rule-driven behavior without hard-coded logic
 - Data-driven dropdowns, matrices, and expressions
@@ -106,10 +106,7 @@ Although inspired by Infor CPQ, this product intentionally **does not replicate 
   - UI rendering
 
 ### Configuration Hierarchy
-Category
-└─ SubCategory
-└─ Option
-└─ Attribute(s)
+Option -> Variable(s)
 
 
 ### Option Behavior
@@ -120,10 +117,10 @@ Options can be:
 
 Option availability and requirement can depend on:
 - Other options being selected / not selected
-- Attribute values anywhere in the configuration
+- Variable values anywhere in the configuration
 
-### Attribute Behavior
-Attributes can be:
+### Variable Behavior
+Variables can be:
 - Visible / hidden
 - Required / optional
 - Constrained by dynamic value sets
@@ -134,10 +131,8 @@ Attributes can be:
 ## 4. Data Model (Conceptual)
 
 ### Core Tables
-- categories
-- subcategories
 - options
-- attributes
+- variables
 - option_lists
 - option_list_items
 
@@ -148,7 +143,7 @@ Attributes can be:
 - matrix_values
 - configurations
 - configuration_selected_options
-- configuration_attribute_values
+- configuration_variable_values
 
 ---
 
@@ -177,7 +172,7 @@ Expressions are stored as strings and evaluated against a configuration context.
 ## 6. UI Direction
 
 ### Runtime Configurator
-- Left-side drawer listing Categories and Subcategories
+- Left-side drawer listing options
 - Options shown in expected completion order
 - Status indicators:
   - Not configured
@@ -187,7 +182,7 @@ Expressions are stored as strings and evaluated against a configuration context.
 - Changing upstream selections invalidates downstream options as needed
 
 ### Admin / Builder UI
-- Category & Subcategory management (completed)
+- Option management (in progress)
 - Option List editor (in progress)
 - Inline editable tables with:
   - Clipboard paste
@@ -212,11 +207,11 @@ Expressions are stored as strings and evaluated against a configuration context.
 ### Backend
 - Prisma enabled
 - Core schema created
-- Category and Subcategory CRUD implemented
+- Option and Variable CRUD implemented
 - API foundation in place
 
 ### Frontend
-- Category and Subcategory forms completed
+- Option editor implemented
 - Option List editor in progress
 - Inline editable table implemented
 - Clipboard paste and import implemented

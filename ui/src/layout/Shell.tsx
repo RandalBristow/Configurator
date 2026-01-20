@@ -4,6 +4,8 @@ import { SidePanelSplitter } from "../components/layout/SidePanelSplitter";
 export function Shell({
   header,
   menubar,
+  rail,
+  railWidth,
   nav,
   navCollapsed,
   navSize,
@@ -14,7 +16,9 @@ export function Shell({
 }: {
   header: React.ReactNode;
   menubar?: React.ReactNode;
-  nav: React.ReactNode;
+  rail?: React.ReactNode;
+  railWidth?: number;
+  nav?: React.ReactNode;
   navCollapsed?: boolean;
   navSize?: number;
   navSplitterSize?: number;
@@ -22,19 +26,38 @@ export function Shell({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const hasNav = Boolean(nav);
+  const hasRail = Boolean(rail);
   const cssVars: React.CSSProperties = {};
-  if (typeof navSize === "number") (cssVars as any)["--sidenav-width"] = `${navSize}px`;
-  if (typeof navSplitterSize === "number") (cssVars as any)["--splitter-width"] = `${navSplitterSize}px`;
+  if (typeof railWidth === "number") (cssVars as any)["--rail-width"] = `${railWidth}px`;
+  if (hasNav && typeof navSize === "number") {
+    (cssVars as any)["--sidenav-width"] = `${navSize}px`;
+  }
+  if (hasNav && typeof navSplitterSize === "number") {
+    const splitterWidth = navCollapsed ? 0 : navSplitterSize;
+    (cssVars as any)["--splitter-width"] = `${splitterWidth}px`;
+  }
 
   return (
     <div className="app-shell" style={cssVars}>
       {header}
       {menubar}
-      <div className="shell-body">
-        <aside className="app-sidenav" style={navSize ? { width: navSize } : undefined}>
-          {nav}
-        </aside>
-        {typeof navSize === "number" &&
+      <div
+        className={`shell-body ${hasNav ? "" : "shell-body--no-nav"} ${
+          hasRail ? "" : "shell-body--no-rail"
+        }`}
+      >
+        {hasRail && <aside className="app-rail">{rail}</aside>}
+        {hasNav && (
+          <aside
+            className={`app-sidenav ${navCollapsed ? "is-collapsed" : ""}`}
+            style={typeof navSize === "number" ? { width: navSize } : undefined}
+          >
+            {nav}
+          </aside>
+        )}
+        {hasNav &&
+          typeof navSize === "number" &&
           typeof navSplitterSize === "number" &&
           typeof onNavSplitterMouseDown === "function" && (
             <SidePanelSplitter

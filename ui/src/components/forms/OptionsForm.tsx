@@ -1,51 +1,49 @@
 import { useState } from "react";
-import type { Option } from "../../types/domain";
+import type { Option, OptionType } from "../../types/domain";
 
 export type CreateOptionInput = Partial<Option>;
 
 export function OptionsForm({
-  subcategoryId,
+  optionType,
   onSubmit,
   loading,
   disabled,
 }: {
-  subcategoryId?: string;
+  optionType: OptionType;
   onSubmit: (data: CreateOptionInput) => void;
   loading: boolean;
   disabled: boolean;
 }) {
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [sortOrder, setSortOrder] = useState(0);
+  const [isActive, setIsActive] = useState(true);
 
   return (
     <form
       className="form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!subcategoryId) return;
-        onSubmit({ subcategoryId, name, code, description, sortOrder });
+        onSubmit({ name, description, isActive, optionType });
         setName("");
-        setCode("");
         setDescription("");
-        setSortOrder(0);
+        setIsActive(true);
       }}
     >
       <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-      <input placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} required />
       <input
         placeholder="Description"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
-      <input
-        type="number"
-        placeholder="Sort order"
-        value={sortOrder}
-        onChange={(e) => setSortOrder(Number(e.target.value))}
-      />
-      <button className="btn" type="submit" disabled={disabled || loading || !name || !code}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+        <input
+          type="checkbox"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.target.checked)}
+        />
+        Active
+      </label>
+      <button className="btn" type="submit" disabled={disabled || loading || !name}>
         Add Option
       </button>
     </form>

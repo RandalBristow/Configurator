@@ -18,11 +18,27 @@ import { WorkspaceSideMenubar } from "../../components/workspace/WorkspaceSideMe
 import { useSelectListPropertiesManager } from "./hooks/useSelectListPropertiesManager";
 import { useSelectListGroupsManager } from "./hooks/useSelectListGroupsManager";
 import { ToolbarButton, ToolbarDivider } from "../../components/ui/ToolbarButton";
-import { Copy, Eraser, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Copy,
+  Eraser,
+  Hash,
+  Info,
+  KeyRound,
+  ListOrdered,
+  MessageSquareText,
+  ToggleRight,
+  Trash2,
+  Type,
+  Users,
+} from "lucide-react";
 
 type Props = {
   selectListId?: string;
   onSelectList: (id?: string) => void;
+  metaDraft?: { name: string; description: string };
+  onMetaDraftChange?: (draft: { name: string; description: string }) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type DraftMap = Record<string, Partial<SelectListItem>>;
@@ -37,17 +53,35 @@ const EMPTY_ITEM: Partial<SelectListItem> = {
   comments: "",
 };
 
+const HEADER_ICON_SIZE = 14;
+
+const iconForPropertyType = (dataType: SelectListPropertyType) => {
+  switch (dataType) {
+    case "number":
+      return <Hash size={HEADER_ICON_SIZE} />;
+    case "boolean":
+      return <ToggleRight size={HEADER_ICON_SIZE} />;
+    case "datetime":
+      return <Calendar size={HEADER_ICON_SIZE} />;
+    default:
+      return <Type size={HEADER_ICON_SIZE} />;
+  }
+};
+
 export function SelectListItemsSection({
   selectListId,
   onSelectList,
+  metaDraft,
+  onMetaDraftChange,
+  onDirtyChange,
 }: Props) {
   const qc = useQueryClient();
   const { setLeftToolbar } = useTabToolbar();
   const [currentListId, setCurrentListId] = useState<string | undefined>(
     selectListId
   );
-  const [listName, setListName] = useState("");
-  const [listDescription, setListDescription] = useState("");
+  const [internalListName, setInternalListName] = useState("");
+  const [internalListDescription, setInternalListDescription] = useState("");
 
   const [rows, setRows] = useState<SelectListItem[]>([]);
   const [drafts, setDrafts] = useState<DraftMap>({});
@@ -56,7 +90,6 @@ export function SelectListItemsSection({
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<SelectListItem[]>([]);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [lastSelectedListId, setLastSelectedListId] = useState<string | undefined>();
   const [membershipsByGroup, setMembershipsByGroup] = useState<Record<string, Set<string>>>({});
   const [membershipDirtyRowsByGroup, setMembershipDirtyRowsByGroup] = useState<Record<string, Set<string>>>({});
   const membershipVersionRef = useRef<Record<string, number>>({});
@@ -147,9 +180,37 @@ export function SelectListItemsSection({
   );
 
   useEffect(() => {
-    setListName(currentList?.name ?? "");
-    setListDescription(currentList?.description ?? "");
-  }, [currentList]);
+    if (!currentList || !onMetaDraftChange || metaDraft) return;
+    onMetaDraftChange({
+      name: currentList.name ?? "",
+      description: currentList.description ?? "",
+    });
+  }, [currentList, metaDraft, onMetaDraftChange]);
+
+  useEffect(() => {
+    if (metaDraft && onMetaDraftChange) return;
+    setInternalListName(currentList?.name ?? "");
+    setInternalListDescription(currentList?.description ?? "");
+  }, [currentList, metaDraft, onMetaDraftChange]);
+
+  const listName = metaDraft?.name ?? internalListName;
+  const listDescription = metaDraft?.description ?? internalListDescription;
+
+  const handleListNameChange = (value: string) => {
+    if (onMetaDraftChange) {
+      onMetaDraftChange({ name: value, description: listDescription });
+      return;
+    }
+    setInternalListName(value);
+  };
+
+  const handleListDescriptionChange = (value: string) => {
+    if (onMetaDraftChange) {
+      onMetaDraftChange({ name: listName, description: value });
+      return;
+    }
+    setInternalListDescription(value);
+  };
 
   useEffect(() => {
     if (itemsQuery.data) {
@@ -496,13 +557,19 @@ export function SelectListItemsSection({
 
   const columns = useMemo<DataGridColumn<SelectListItem>[]>(
     () => [
-      { key: "value", header: "*Value", type: "string" },
-      { key: "displayValue", header: "*Display Value", type: "string" },
+      { key: "value", header: "*Value", type: "string", headerIcon: <KeyRound size={HEADER_ICON_SIZE} /> },
+      {
+        key: "displayValue",
+        header: "*Display Value",
+        type: "string",
+        headerIcon: <Type size={HEADER_ICON_SIZE} />,
+      },
       {
         key: "order",
         header: "*Order",
         type: "number",
         align: "center",
+        headerIcon: <ListOrdered size={HEADER_ICON_SIZE} />,
       },
       {
         key: "isActive",
@@ -510,9 +577,15 @@ export function SelectListItemsSection({
         type: "boolean",
         align: "center",
         filterLabel: (val) => (val ? "Active" : "Inactive"),
+        headerIcon: <ToggleRight size={HEADER_ICON_SIZE} />,
       },
-      { key: "tooltip", header: "Tooltip", type: "string" },
-      { key: "comments", header: "Comments", type: "string" },
+      { key: "tooltip", header: "Tooltip", type: "string", headerIcon: <Info size={HEADER_ICON_SIZE} /> },
+      {
+        key: "comments",
+        header: "Comments",
+        type: "string",
+        headerIcon: <MessageSquareText size={HEADER_ICON_SIZE} />,
+      },
     ],
     []
   );
@@ -520,7 +593,7 @@ export function SelectListItemsSection({
   type SelectListItemRow = SelectListItem & { __member?: boolean };
 
   const groupColumns = useMemo<DataGridColumn<GroupRow>[]>(
-    () => [{ key: "name", header: "Group", type: "string" }],
+    () => [{ key: "name", header: "Group", type: "string", headerIcon: <Users size={HEADER_ICON_SIZE} /> }],
     []
   );
 
@@ -550,6 +623,11 @@ export function SelectListItemsSection({
     hasItemPropertyChanges ||
     hasPropertyChanges ||
     hasGroupChanges;
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsaved);
+    return () => onDirtyChange?.(false);
+  }, [hasUnsaved, onDirtyChange]);
 
   const finalizeNewRow = (opts?: { showError?: boolean }) => {
     const trimmedValue = newRow.value?.trim();
@@ -586,11 +664,10 @@ export function SelectListItemsSection({
 
   const resetToNewList = () => {
     setIsCreatingNew(true);
-    setLastSelectedListId(currentListId);
     setCurrentListId(undefined);
     onSelectList(undefined);
-    setListName("");
-    setListDescription("");
+    setInternalListName("");
+    setInternalListDescription("");
     setRows([]);
     setDrafts({});
     setItemPropertyDrafts({});
@@ -598,49 +675,6 @@ export function SelectListItemsSection({
     setPendingDeletes(new Set());
     setNewRow(EMPTY_ITEM);
     setPendingAdds([]);
-  };
-
-  const handleStartNewList = () => {
-    if (hasUnsaved) {
-      setConfirmDialog({
-        open: true,
-        title: "Start a new list?",
-        description: "Unsaved changes will be lost.",
-        onConfirm: resetToNewList,
-      });
-      return;
-    }
-    resetToNewList();
-  };
-
-  const handleCancelNewList = () => {
-    const performCancel = () => {
-      setIsCreatingNew(false);
-      setPendingAdds([]);
-      setPendingDeletes(new Set());
-      setDrafts({});
-      setItemPropertyDrafts({});
-      setNewRow(EMPTY_ITEM);
-      const fallbackId =
-        lastSelectedListId ??
-        (listsQuery.data && listsQuery.data.length ? listsQuery.data[0].id : undefined);
-      if (fallbackId) {
-        setCurrentListId(fallbackId);
-        onSelectList(fallbackId);
-      }
-    };
-
-    if (hasUnsaved) {
-      setConfirmDialog({
-        open: true,
-        title: "Discard new list?",
-        description: "Unsaved changes will be lost.",
-        onConfirm: performCancel,
-      });
-      return;
-    }
-
-    performCancel();
   };
 
   const handleDeleteList = () => {
@@ -757,6 +791,7 @@ export function SelectListItemsSection({
         key: (`prop:${p.key}` as any) as keyof SelectListItemRow,
         header: p.key,
         type,
+        headerIcon: iconForPropertyType(p.dataType),
       };
     });
   }, [customPropertyDefs]);
@@ -779,6 +814,7 @@ export function SelectListItemsSection({
         type: "boolean",
         width: headerWidth,
         align: "center",
+        headerIcon: <Users size={HEADER_ICON_SIZE} />,
       },
       ...base,
     ];
@@ -1070,38 +1106,29 @@ export function SelectListItemsSection({
   };
 
   const leftActionsRef = useRef({
-    onNew: handleStartNewList,
-    onCancel: handleCancelNewList,
     onSave: handleSaveAll,
     onDelete: handleDeleteList,
   });
 
   leftActionsRef.current = {
-    onNew: handleStartNewList,
-    onCancel: handleCancelNewList,
     onSave: handleSaveAll,
     onDelete: handleDeleteList,
   };
 
-  const onNew = useCallback(() => leftActionsRef.current.onNew(), []);
-  const onCancel = useCallback(() => leftActionsRef.current.onCancel(), []);
   const onSave = useCallback(() => leftActionsRef.current.onSave(), []);
   const onDelete = useCallback(() => leftActionsRef.current.onDelete(), []);
 
   const leftToolbarNode = useMemo(
     () => (
       <SelectListObjectToolbar
-        isCreatingNew={isCreatingNew}
         controlsDisabled={isCreatingNew}
         saveDisabled={!listName.trim()}
         deleteDisabled={!currentListId}
-        onNew={onNew}
-        onCancel={onCancel}
         onSave={onSave}
         onDelete={onDelete}
       />
     ),
-    [isCreatingNew, listName, currentListId, onNew, onCancel, onSave, onDelete],
+    [isCreatingNew, listName, currentListId, onSave, onDelete],
   );
 
   useEffect(() => {
@@ -1241,8 +1268,8 @@ export function SelectListItemsSection({
               <SelectListDetailsPane
                 listName={listName}
                 listDescription={listDescription}
-                onChangeName={setListName}
-                onChangeDescription={setListDescription}
+                onChangeName={handleListNameChange}
+                onChangeDescription={handleListDescriptionChange}
                 onFocusSelectAll={handleFocusSelectAll}
               />
             ) : sidePaneTab === "groups" ? (
