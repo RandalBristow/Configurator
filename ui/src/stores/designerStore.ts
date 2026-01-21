@@ -1,10 +1,21 @@
 import { create } from "zustand";
 import type { DesignerComponent, DesignerFormDefinition } from "../types/designer";
+import {
+  cloneComponentTree,
+  findComponentById,
+  findComponentLocation,
+  insertComponentAt,
+  moveComponentToTarget,
+  removeComponentById,
+  updateComponentById,
+  type ContainerTarget,
+} from "./designerTree";
 
 type DesignerStoreState = {
   components: DesignerComponent[];
   selectedComponentId: string | null;
   hoveredComponentId: string | null;
+  flowDropIndicator: { target: ContainerTarget; index: number } | null;
   snapGuides: Array<unknown>;
   gridSize: number;
   snapToGrid: boolean;
@@ -13,13 +24,20 @@ type DesignerStoreState = {
   canvasSize: { width: number; height: number };
   zoom: number;
 
-  addComponent: (componentData: Omit<DesignerComponent, "id">) => void;
+  addComponent: (
+    componentData: Omit<DesignerComponent, "id">,
+    target?: ContainerTarget,
+    index?: number
+  ) => void;
   removeComponent: (id: string) => void;
   updateComponent: (id: string, updates: Partial<DesignerComponent>) => void;
   moveComponent: (id: string, position: { x: number; y: number }) => void;
   resizeComponent: (id: string, size: { width: number; height: number }) => void;
   selectComponent: (id: string | null) => void;
   setHoveredComponent: (id: string | null) => void;
+  setFlowDropIndicator: (
+    indicator: { target: ContainerTarget; index: number } | null
+  ) => void;
   setDraggedComponent: (component: DesignerComponent | null) => void;
   setSnapToGrid: (enabled: boolean) => void;
   setShowGrid: (visible: boolean) => void;
@@ -29,6 +47,11 @@ type DesignerStoreState = {
   setZoom: (zoom: number) => void;
   clearSelection: () => void;
   duplicateComponent: (id: string) => void;
+  moveComponentToTarget: (
+    id: string,
+    target: ContainerTarget,
+    index?: number
+  ) => void;
   getComponentById: (id: string) => DesignerComponent | undefined;
   loadFormDefinition: (definition?: DesignerFormDefinition | null) => void;
   getFormDefinition: () => DesignerFormDefinition;
@@ -36,11 +59,40 @@ type DesignerStoreState = {
 
 const generateId = () => Math.random().toString(36).slice(2, 11);
 
+const normalizeFlatComponents = (components: DesignerComponent[]) => {
+  const hasParentIds = components.some(
+    (component) => typeof (component as { parentId?: string }).parentId === "string"
+  );
+  if (!hasParentIds) return components;
+  const byId = new Map<string, DesignerComponent>();
+  components.forEach((component) => {
+    const cleaned = { ...component };
+    delete (cleaned as { parentId?: string }).parentId;
+    byId.set(component.id, { ...cleaned, children: [] });
+  });
+  const roots: DesignerComponent[] = [];
+  components.forEach((component) => {
+    const parentId = (component as { parentId?: string }).parentId ?? null;
+    const current = byId.get(component.id);
+    if (!current) return;
+    if (parentId && byId.has(parentId)) {
+      const parent = byId.get(parentId);
+      if (parent) {
+        parent.children = [...(parent.children ?? []), current];
+      }
+    } else {
+      roots.push(current);
+    }
+  });
+  return roots;
+};
+
 export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   // Initial state
   components: [],
   selectedComponentId: null,
   hoveredComponentId: null,
+  flowDropIndicator: null,
   snapGuides: [],
   gridSize: 10,
   snapToGrid: true,
@@ -50,30 +102,37 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   zoom: 1,
 
   // Actions
-  addComponent: (componentData) => {
+  addComponent: (componentData, target = { kind: "root" }, index) => {
     const component = {
       ...componentData,
       id: generateId(),
     };
     set((state) => ({
-      components: [...state.components, component],
+      components: insertComponentAt(state.components, target, component, index),
       selectedComponentId: component.id,
     }));
   },
 
   removeComponent: (id) => {
-    set((state) => ({
-      components: state.components.filter((c) => c.id !== id),
-      selectedComponentId:
-        state.selectedComponentId === id ? null : state.selectedComponentId,
-    }));
+    set((state) => {
+      const nextComponents = removeComponentById(state.components, id);
+      const selectedId = state.selectedComponentId;
+      const stillSelected = selectedId
+        ? findComponentById(nextComponents, selectedId)
+        : null;
+      return {
+        components: nextComponents,
+        selectedComponentId: stillSelected ? selectedId : null,
+      };
+    });
   },
 
   updateComponent: (id, updates) => {
     set((state) => ({
-      components: state.components.map((c) =>
-        c.id === id ? { ...c, ...updates } : c
-      ),
+      components: updateComponentById(state.components, id, (component) => ({
+        ...component,
+        ...updates,
+      })),
     }));
   },
 
@@ -87,18 +146,20 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
       };
     }
     set((state) => ({
-      components: state.components.map((c) =>
-        c.id === id ? { ...c, position: finalPosition } : c
-      ),
+      components: updateComponentById(state.components, id, (component) => ({
+        ...component,
+        position: finalPosition,
+      })),
     }));
   },
 
   resizeComponent: (id, size) => {
     // Always set the measured size, do not snap to grid for any component
     set((state) => ({
-      components: state.components.map((c) =>
-        c.id === id ? { ...c, size } : c
-      ),
+      components: updateComponentById(state.components, id, (component) => ({
+        ...component,
+        size,
+      })),
     }));
   },
 
@@ -108,6 +169,10 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
 
   setHoveredComponent: (id) => {
     set({ hoveredComponentId: id });
+  },
+
+  setFlowDropIndicator: (indicator) => {
+    set({ flowDropIndicator: indicator });
   },
 
   setDraggedComponent: (component) => {
@@ -143,28 +208,36 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
   },
 
   duplicateComponent: (id) => {
-    const component = get().getComponentById(id);
-    if (component) {
-      const duplicated = {
-        ...component,
-        position: {
-          x: component.position.x + 20,
-          y: component.position.y + 20,
-        },
+    const state = get();
+    const location = findComponentLocation(state.components, id);
+    if (!location) return;
+    const cloned = cloneComponentTree(location.component, generateId);
+    if (location.parent.kind === "root") {
+      cloned.position = {
+        x: location.component.position.x + 20,
+        y: location.component.position.y + 20,
       };
-      // Preserve the type, label, size, and properties; assign a new id in addComponent.
-      get().addComponent({
-        type: duplicated.type,
-        label: duplicated.label,
-        position: duplicated.position,
-        size: duplicated.size,
-        properties: duplicated.properties,
-      });
     }
+    set((state) => ({
+      components: insertComponentAt(
+        state.components,
+        location.parent,
+        cloned,
+        location.index + 1
+      ),
+      selectedComponentId: cloned.id,
+    }));
   },
 
   getComponentById: (id) => {
-    return get().components.find((c) => c.id === id);
+    return findComponentById(get().components, id);
+  },
+
+  moveComponentToTarget: (id, target, index) => {
+    set((state) => ({
+      components: moveComponentToTarget(state.components, id, target, index),
+      selectedComponentId: id,
+    }));
   },
 
   loadFormDefinition: (definition) => {
@@ -176,7 +249,7 @@ export const useDesignerStore = create<DesignerStoreState>((set, get) => ({
     };
     const resolved = definition ?? fallback;
     set({
-      components: resolved.components ?? [],
+      components: normalizeFlatComponents(resolved.components ?? []),
       selectedComponentId: null,
       hoveredComponentId: null,
       draggedComponent: null,

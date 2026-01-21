@@ -1,7 +1,15 @@
-import { ChakraProvider } from "@chakra-ui/react";
+import {
+  ChakraProvider,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalHeader,
+  ModalOverlay,
+} from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { SaveIcon, UploadCloud } from "lucide-react";
+import { Eye, SaveIcon, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { optionsApi } from "../../../api/entities";
 import type { Option } from "../../../types/domain";
@@ -11,6 +19,7 @@ import { ToolbarButton, ToolbarDivider } from "../../../components/ui/ToolbarBut
 import type { OptionsDetailsPaneProps } from "../../../components/options/OptionsDetailsPane";
 import type { VariablesManager } from "../../variables/hooks/useVariablesManager";
 import { FormDesigner } from "./FormDesigner";
+import { FormDesignerPreview } from "./FormDesignerPreview";
 import theme from "./chakraTheme";
 import "./formDesigner.css";
 
@@ -60,6 +69,7 @@ export function FormDesignerHost({
   const [baselineDefinition, setBaselineDefinition] = useState<DesignerFormDefinition | null>(
     null,
   );
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const optionQuery = useQuery({
     queryKey: ["options", optionId],
@@ -104,6 +114,15 @@ export function FormDesignerHost({
     if (!optionId || !canDesign) return;
     const definition = getFormDefinition();
     publish.mutate(definition);
+  };
+
+  const handleOpenPreview = () => {
+    if (!canDesign) return;
+    setIsPreviewOpen(true);
+  };
+
+  const handleClosePreview = () => {
+    setIsPreviewOpen(false);
   };
 
   useEffect(() => {
@@ -161,6 +180,13 @@ export function FormDesignerHost({
               icon={<SaveIcon size={14} />}
               label="Save Draft"
             />
+            <ToolbarButton
+              title="Preview form"
+              onClick={handleOpenPreview}
+              disabled={!canDesign}
+              icon={<Eye size={14} />}
+              label="Preview"
+            />
             <ToolbarDivider />
             <ToolbarButton
               title="Publish current draft"
@@ -198,6 +224,24 @@ export function FormDesignerHost({
           )}
         </div>
       </div>
+
+      <Modal isOpen={isPreviewOpen} onClose={handleClosePreview} size="full">
+        <ModalOverlay />
+        <ModalContent className="form-designer-preview">
+          <ModalHeader className="form-designer-preview__header">
+            Form Preview
+            {option?.name && (
+              <span className="form-designer-preview__option">
+                {option.name}
+              </span>
+            )}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody className="form-designer-preview__body">
+            <FormDesignerPreview />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </ChakraProvider>
   );
 }

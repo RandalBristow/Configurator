@@ -5,6 +5,8 @@ export type DesignerComponent = {
   position: { x: number; y: number };
   size: { width: number; height: number };
   properties: Record<string, unknown>;
+  children?: DesignerComponent[];
+  column?: number;
 };
 
 export type DesignerFormDefinition = {

@@ -13,6 +13,8 @@ import { DesignSurface } from "./DesignSurface";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { useDesignerStore } from "@/stores/designerStore";
 import { componentDefinitions } from "@/data/componentDefinitions";
+import { getDropZoneId } from "./containerUtils";
+import { canDropComponentInTarget } from "./dropRules";
 import { OptionVariablesPanel } from "@/components/options/OptionVariablesPanel";
 import type { OptionsDetailsPaneProps } from "@/components/options/OptionsDetailsPane";
 import type { VariablesManager } from "@/features/variables/hooks/useVariablesManager";
@@ -28,6 +30,8 @@ type Props = {
   optionVariables?: VariablesManager;
 };
 
+const generateId = () => Math.random().toString(36).slice(2, 9);
+
 export function FormDesigner({ optionDetails, optionVariables }: Props) {
   const [draggedItem, setDraggedItem] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -37,8 +41,7 @@ export function FormDesigner({ optionDetails, optionVariables }: Props) {
   const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const variablesPanelRef = useRef<PanelImperativeHandle | null>(null);
   const [variablesCollapsed, setVariablesCollapsed] = useState(false);
-  const { addComponent, moveComponent, draggedComponent, setDraggedComponent } =
-    useDesignerStore();
+  const { addComponent, moveComponent, setDraggedComponent } = useDesignerStore();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -88,18 +91,38 @@ export function FormDesigner({ optionDetails, optionVariables }: Props) {
       return;
     }
     const dragData = active.data.current;
-    if (dragData.isNewComponent && over.id === "design-canvas") {
+    if (dragData.isNewComponent) {
       const componentDef = componentDefinitions.find(
         (def) => def.type === dragData.componentType
       );
       if (componentDef) {
-        const canvasElement = document.getElementById("design-canvas");
+        const state = useDesignerStore.getState();
+        const target = over.data?.current?.target ?? { kind: "root" };
+        if (
+          !canDropComponentInTarget(
+            componentDef.type,
+            target,
+            state.getComponentById
+          )
+        ) {
+          setDraggedItem(null);
+          setDraggedComponent(null);
+          return;
+        }
+        const targetElement = document.getElementById(getDropZoneId(target));
         let x = 50;
         let y = 50;
-        if (canvasElement) {
-          const canvasRect = canvasElement.getBoundingClientRect();
-          x = Math.max(0, mousePosition.x - canvasRect.left - dragOffset.x);
-          y = Math.max(0, mousePosition.y - canvasRect.top - dragOffset.y);
+        if (targetElement) {
+          const targetRect = targetElement.getBoundingClientRect();
+          x = Math.max(0, mousePosition.x - targetRect.left - dragOffset.x);
+          y = Math.max(0, mousePosition.y - targetRect.top - dragOffset.y);
+        }
+        if (
+          target.kind === "gridColumn" &&
+          state.getComponentById(target.componentId)?.type === "Section"
+        ) {
+          x = 0;
+          y = 0;
         }
         // Map MUI-style values to Chakra-style values for Chakra compatibility
         const normalizePropertyValue = (key, value) => {
@@ -123,19 +146,38 @@ export function FormDesigner({ optionDetails, optionVariables }: Props) {
           }
           return value;
         };
-        addComponent({
+        const baseProperties = componentDef.properties.reduce(
+          (acc, prop) => ({
+            ...acc,
+            [prop.key]: normalizePropertyValue(prop.key, prop.defaultValue),
+          }),
+          {}
+        );
+        const properties = {
+          ...baseProperties,
+          ...(componentDef.type === "Accordion"
+            ? {
+                panels: [
+                  { id: generateId(), title: "Panel 1", children: [] },
+                ],
+              }
+            : {}),
+          ...(componentDef.type === "MultiInstanceStepper"
+            ? {
+                steps: [{ id: generateId(), title: "Step 1", children: [] }],
+              }
+            : {}),
+        };
+        addComponent(
+          {
           type: componentDef.type,
           label: componentDef.label,
           position: { x, y },
           size: componentDef.defaultSize,
-          properties: componentDef.properties.reduce(
-            (acc, prop) => ({
-              ...acc,
-              [prop.key]: normalizePropertyValue(prop.key, prop.defaultValue),
-            }),
-            {}
-          ),
-        });
+          properties,
+          },
+          target
+        );
       }
     }
     if (!dragData.isNewComponent && dragData.componentId && event.delta) {

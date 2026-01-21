@@ -21,9 +21,16 @@ import {
   LucideMinus,
   LucideRectangleHorizontal,
   LucideRectangleVertical,
-  LucideLayoutList,
   LucideChevronLeft,
   LucideChevronRight,
+  LucideLayoutPanelTop,
+  LucideLayoutPanelLeft,
+  LucideLayoutGrid,
+  LucideRepeat,
+  LucideLayoutTemplate,
+  LucideListOrdered,
+  LucideListChecks,
+  LucideLayoutList,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -39,6 +46,13 @@ const iconMap = {
   CropLandscape: LucideRectangleHorizontal,
   Rectangle: LucideRectangleVertical,
   ViewAgenda: LucideLayoutList,
+  LayoutPanelTop: LucideLayoutPanelTop,
+  LayoutPanelLeft: LucideLayoutPanelLeft,
+  LayoutGrid: LucideLayoutGrid,
+  Repeat: LucideRepeat,
+  LayoutTemplate: LucideLayoutTemplate,
+  ListOrdered: LucideListOrdered,
+  ListChecks: LucideListChecks,
 };
 
 // Map raw categories to human-friendly group names
