@@ -7,6 +7,10 @@ export type DesignerComponent = {
   properties: Record<string, unknown>;
   children?: DesignerComponent[];
   column?: number;
+  grid?: {
+    start?: Record<string, number>;
+    span?: Record<string, number>;
+  };
 };
 
 export type DesignerFormDefinition = {

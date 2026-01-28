@@ -31,6 +31,26 @@ import {
   LucideListOrdered,
   LucideListChecks,
   LucideLayoutList,
+  LucideAlignLeft,
+  LucideHash,
+  LucideLock,
+  LucideAtSign,
+  LucideLink,
+  LucideCircle,
+  LucideSearch,
+  LucideCalendar,
+  LucideClock,
+  LucideCalendarRange,
+  LucideUpload,
+  LucideSlidersHorizontal,
+  LucideStar,
+  LucideInfo,
+  LucideImage,
+  LucideAlertTriangle,
+  LucideLoader2,
+  LucideFileText,
+  LucideTable,
+  LucideSparkles,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -53,13 +73,41 @@ const iconMap = {
   LayoutTemplate: LucideLayoutTemplate,
   ListOrdered: LucideListOrdered,
   ListChecks: LucideListChecks,
+  TextArea: LucideAlignLeft,
+  NumberInput: LucideHash,
+  PasswordInput: LucideLock,
+  EmailInput: LucideAtSign,
+  UrlInput: LucideLink,
+  RadioGroup: LucideCircle,
+  CheckboxGroup: LucideCheckSquare,
+  MultiSelect: LucideListChecks,
+  ComboBox: LucideSearch,
+  DatePicker: LucideCalendar,
+  TimePicker: LucideClock,
+  DateRange: LucideCalendarRange,
+  FileUpload: LucideUpload,
+  Slider: LucideSlidersHorizontal,
+  Rating: LucideStar,
+  ButtonGroup: LucideLayoutList,
+  LabelText: LucideTag,
+  HelperText: LucideInfo,
+  Image: LucideImage,
+  Icon: LucideSparkles,
+  Alert: LucideAlertTriangle,
+  Progress: LucideLoader2,
+  Spinner: LucideLoader2,
+  RichText: LucideFileText,
+  StepIndicator: LucideListOrdered,
+  DataTable: LucideTable,
+  Lookup: LucideSearch,
 };
 
 // Map raw categories to human-friendly group names
 const CATEGORY_LABELS = {
-  Input: "Input Controls",
-  Display: "Display Elements",
-  Layout: "Layout Containers",
+  Input: "Form",
+  Display: "Visual",
+  Layout: "Layout",
+  Data: "Data",
   // Add more mappings as needed
 };
 
@@ -87,7 +135,7 @@ function DraggableComponent({ type, label, icon, compact }) {
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, marginLeft: compact ? 0 : 10 }}
+      style={style}
       {...listeners}
       {...attributes}
       className={className}

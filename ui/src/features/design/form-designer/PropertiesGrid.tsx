@@ -14,6 +14,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { IconPicker } from "@/components/ui/icon-picker";
 
 /**
  * PropertiesGrid
@@ -152,6 +153,27 @@ export function PropertiesGrid({
                               className="properties-grid__input"
                               disabled={property.disabled}
                             />
+                          ) : property.type === "collection" ? (
+                            <div className="properties-grid__collection">
+                              <span className="properties-grid__collection-value">
+                                (Collection)
+                              </span>
+                              {typeof property.onEdit === "function" ? (
+                                <button
+                                  type="button"
+                                  className="properties-grid__collection-btn"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    property.onEdit();
+                                  }}
+                                  aria-label={`Edit ${property.label}`}
+                                  title={`Edit ${property.label}`}
+                                >
+                                  ...
+                                </button>
+                              ) : null}
+                            </div>
                           ) : property.type === "boolean" ? (
                             <Select
                               value={
@@ -170,9 +192,19 @@ export function PropertiesGrid({
                               >
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="true">True</SelectItem>
-                                <SelectItem value="false">False</SelectItem>
+                              <SelectContent className="properties-grid__select-content">
+                                <SelectItem
+                                  className="properties-grid__select-item"
+                                  value="true"
+                                >
+                                  True
+                                </SelectItem>
+                                <SelectItem
+                                  className="properties-grid__select-item"
+                                  value="false"
+                                >
+                                  False
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           ) : property.type === "select" ? (
@@ -185,17 +217,26 @@ export function PropertiesGrid({
                               >
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="properties-grid__select-content">
                                 {property.options?.map((option) => (
                                   <SelectItem
                                     key={option.value}
                                     value={option.value}
+                                    className="properties-grid__select-item"
                                   >
                                     {option.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
+                          ) : property.type === "icon" ? (
+                            <IconPicker
+                              value={property.value || ""}
+                              onChange={property.onChange}
+                              placeholder="No icon selected"
+                              disabled={property.disabled}
+                              showVariants={false}
+                            />
                           ) : property.type === "color" ? (
                             <Input
                               type="color"

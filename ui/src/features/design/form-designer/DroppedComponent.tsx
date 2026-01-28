@@ -1,10 +1,18 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import React, { useRef, useState, useEffect } from "react";
 import { useDesignerStore } from "@/stores/designerStore";
 import { ComponentRenderer } from "./ComponentRenderer";
 import { componentDefinitions } from "@/data/componentDefinitions";
 import { canDropComponentInTarget } from "./dropRules";
 import { getDropZoneId, parseDropZoneDataset } from "./containerUtils";
+import {
+  buildGridLayoutForColumn,
+  clampGridPlacement,
+  getActiveBreakpoint,
+  getGridColumnsForWidth,
+  getNextGridStart,
+  getResponsiveValue,
+} from "./gridUtils";
 import "@/index.css";
 
 export function DroppedComponent({
@@ -15,23 +23,31 @@ export function DroppedComponent({
 }) {
   const {
     selectedComponentId,
+    selectedComponentIds,
     selectComponent,
+    addComponentSelection,
+    toggleComponentSelection,
+    setPrimarySelection,
     moveComponent,
     resizeComponent,
     updateComponent,
     moveComponentToTarget,
     getComponentById,
     setFlowDropIndicator,
-    snapToGrid,
-    gridSize,
+    setActiveDropTarget,
+    setDraggedComponent,
+    draggedComponent,
   } = useDesignerStore();
-  const isSelected = selectedComponentId === component.id;
+  const isSelected = selectedComponentIds.includes(component.id);
+  const isLocked = Boolean(component.properties?.locked);
+  const isHidden = Boolean(component.properties?.hidden);
   const [isDragging, setIsDragging] = useState(false);
   const [isPointerDown, setIsPointerDown] = useState(false);
   const [pointerDownStart, setPointerDownStart] = useState({ x: 0, y: 0 });
   const [dragSize, setDragSize] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragGhostPosition, setDragGhostPosition] = useState(null);
   const [resizeStart, setResizeStart] = useState({
     x: 0,
     y: 0,
@@ -46,6 +62,9 @@ export function DroppedComponent({
   const componentRef = useRef(null);
   const lastPointerYRef = useRef(null);
   const dragDirectionRef = useRef(null);
+  const lastHoverTargetRef = useRef(null);
+  const dragGhostOffsetRef = useRef({ x: 0, y: 0 });
+  const selectionHandledRef = useRef(false);
   const [measuredHeight, setMeasuredHeight] = useState(component.size.height);
   const [measuredWidth, setMeasuredWidth] = useState(component.size.width);
   const contentRef = useRef(null);
@@ -70,22 +89,38 @@ export function DroppedComponent({
   };
 
   const isContainer = [
+    "FlexContainer",
+    "Card",
     "Section",
     "Subsection",
+    "Paper",
+    "Container",
     "Grid",
     "Repeater",
     "Page",
     "Accordion",
-    "Step",
     "MultiInstanceStepper",
   ].includes(component.type);
+  const parentComponent =
+    parentTarget && parentTarget.kind !== "root"
+      ? getComponentById(parentTarget.componentId)
+      : null;
+  const isGridParent = parentComponent?.type === "Grid";
+  const isFlexParent = parentComponent?.type === "FlexContainer";
+  const isFlowParent =
+    parentComponent?.type === "Subsection" ||
+    parentComponent?.type === "Card" ||
+    isFlexParent;
   const flowLayout =
     (parentTarget?.kind === "gridColumn" &&
-      getComponentById(parentTarget.componentId)?.type === "Section") ||
+      parentComponent?.type === "Section") ||
     (parentTarget?.kind === "children" &&
-      getComponentById(parentTarget.componentId)?.type === "Subsection");
+      (isFlowParent || isGridParent));
+  const flowFullWidth = flowLayout && !isFlexParent;
   const isSectionCollapsed =
     component.type === "Section" && Boolean(component.properties?.collapsed);
+  const isGridCollapsed =
+    component.type === "Grid" && Boolean(component.properties?.collapsed);
 
   // --- DEBUG: Log selection changes ---
   useEffect(() => {
@@ -107,6 +142,41 @@ export function DroppedComponent({
     }
   }, [isResizing, isDragging, component.id, selectedComponentId]);
 
+  const applySelection = (event, options = {}) => {
+    if (isPreview) return;
+    const forceSingle = Boolean(options.forceSingle);
+    if (!forceSingle && event) {
+      if (event.shiftKey) {
+        addComponentSelection(component.id);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey) {
+        toggleComponentSelection(component.id);
+        return;
+      }
+    }
+    if (selectedComponentIds.includes(component.id)) {
+      setPrimarySelection(component.id);
+    } else {
+      selectComponent(component.id);
+    }
+  };
+
+  useEffect(() => {
+    if (isPreview) return;
+    if (isDragging) {
+      setDraggedComponent(component);
+    } else if (draggedComponent?.id === component.id) {
+      setDraggedComponent(null);
+    }
+  }, [
+    isDragging,
+    isPreview,
+    component.id,
+    draggedComponent?.id,
+    setDraggedComponent,
+  ]);
+
   const getTargetRect = (target) => {
     if (!target || target.kind === "root") {
       const surface = document.getElementById(getDropZoneId({ kind: "root" }));
@@ -117,6 +187,30 @@ export function DroppedComponent({
   };
 
   const getParentRect = () => getTargetRect(parentTarget);
+
+  const getGridPlacement = () => {
+    if (!isGridParent || !parentTarget || parentTarget.kind !== "children") {
+      return null;
+    }
+    const dropZone = document.getElementById(getDropZoneId(parentTarget));
+    const width = dropZone?.getBoundingClientRect().width ?? 0;
+    const columns = getGridColumnsForWidth(
+      parentComponent?.properties?.columns,
+      width
+    );
+    const active = getActiveBreakpoint(width);
+    const legacyStart = Number.isFinite(component.column)
+      ? component.column
+      : 1;
+    const startValue = component.grid?.start
+      ? getResponsiveValue(component.grid?.start, active, legacyStart)
+      : legacyStart;
+    const spanValue = component.grid?.span
+      ? getResponsiveValue(component.grid?.span, active, 1)
+      : 1;
+    const placement = clampGridPlacement(startValue, spanValue, columns);
+    return { ...placement, columns };
+  };
 
   const parsePixelValue = (value) => {
     const parsed = Number.parseFloat(value);
@@ -145,7 +239,7 @@ export function DroppedComponent({
   const getContainerMinSize = () => {
     if (!componentRef.current) return null;
     const header = componentRef.current.querySelector(
-      ".designer-section__header, .designer-subsection__header, .designer-grid__header, .designer-repeater__header, .designer-page__header, .designer-step__header, .designer-accordion__header, .designer-stepper__header"
+      ".designer-section__header, .designer-subsection__header, .designer-card__header, .designer-flex__header, .designer-layout-container__header, .designer-grid__header, .designer-repeater__header, .designer-tabs__header, .designer-page__header, .designer-step__header, .designer-accordion__header, .designer-stepper__header"
     );
     const headerHeight = header
       ? header.getBoundingClientRect().height
@@ -174,7 +268,7 @@ export function DroppedComponent({
       }
     } else {
       const body = componentRef.current.querySelector(
-        ".designer-subsection__body, .designer-grid__body, .designer-repeater__body, .designer-page__body, .designer-step__body, .designer-accordion__panels, .designer-stepper__body"
+        ".designer-subsection__body, .designer-card__body, .designer-flex__body, .designer-paper__body, .designer-layout-container__drop, .designer-grid__body, .designer-repeater__body, .designer-tabs__panel, .designer-tabs__body, .designer-page__body, .designer-step__body, .designer-accordion__panels, .designer-stepper__body"
       );
       const bodyMetrics = getBoxMetrics(body);
       bodyMinHeight = bodyMetrics.minHeight + bodyMetrics.paddingY;
@@ -197,18 +291,55 @@ export function DroppedComponent({
     return fallbackY;
   };
 
-  const getFlowDropIndex = (target, clientY, ignoreId, direction) => {
+  const getFlowDropIndex = (
+    target,
+    clientY,
+    clientX,
+    ignoreId,
+    direction,
+    sortByRect = false
+  ) => {
     const dropZone = document.getElementById(getDropZoneId(target));
     if (!dropZone) return undefined;
     const items = Array.from(
       dropZone.querySelectorAll("[data-component-id]")
-    ).filter((element) => {
-      if (!(element instanceof HTMLElement)) return false;
-      if (element.dataset.componentId === ignoreId) return false;
-      return element.closest("[data-container-kind]") === dropZone;
-    });
+    )
+      .filter((element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        if (element.dataset.componentId === ignoreId) return false;
+        return element.closest("[data-container-kind]") === dropZone;
+      })
+      .map((element) => ({
+        element,
+        rect: element.getBoundingClientRect(),
+      }));
     if (items.length === 0) return 0;
-    const rects = items.map((item) => item.getBoundingClientRect());
+    const ordered = sortByRect
+      ? items
+          .slice()
+          .sort(
+            (a, b) =>
+              a.rect.top - b.rect.top || a.rect.left - b.rect.left
+          )
+      : items;
+    const rects = ordered.map((entry) => entry.rect);
+    if (sortByRect) {
+      const pointerX = Number.isFinite(clientX) ? clientX : null;
+      for (let index = 0; index < rects.length; index += 1) {
+        const rect = rects[index];
+        if (clientY < rect.top + rect.height * 0.5) {
+          return index;
+        }
+        if (
+          pointerX !== null &&
+          clientY <= rect.bottom &&
+          pointerX < rect.left + rect.width * 0.5
+        ) {
+          return index;
+        }
+      }
+      return rects.length;
+    }
     const threshold =
       direction === "down" ? 0.7 : direction === "up" ? 0.3 : 0.5;
     for (let index = 0; index < rects.length; index += 1) {
@@ -277,6 +408,17 @@ export function DroppedComponent({
         }
       }
     }
+    if (rootComponent.type === "Page") {
+      const tabs = Array.isArray(rootComponent.properties?.tabs)
+        ? rootComponent.properties.tabs
+        : [];
+      for (const tab of tabs) {
+        const tabChildren = Array.isArray(tab.children) ? tab.children : [];
+        for (const child of tabChildren) {
+          if (isComponentInTree(child, targetId)) return true;
+        }
+      }
+    }
     return false;
   };
 
@@ -291,8 +433,10 @@ export function DroppedComponent({
     if (!document.elementsFromPoint) return null;
     const elements = document.elementsFromPoint(clientX, clientY);
     const state = useDesignerStore.getState();
+    const draggedRoot = componentRef.current;
     for (const element of elements) {
       if (!(element instanceof HTMLElement)) continue;
+      if (draggedRoot && draggedRoot.contains(element)) continue;
       const containerElement = element.closest("[data-container-kind]");
       if (!containerElement) continue;
       const target = parseDropZoneDataset(containerElement);
@@ -317,6 +461,7 @@ export function DroppedComponent({
     if (a.kind !== b.kind) return false;
     if (a.kind === "root") return true;
     if (a.componentId !== b.componentId) return false;
+    if (a.kind === "tabPanel") return a.tabId === b.tabId;
     if (a.kind === "accordionPanel") return a.panelId === b.panelId;
     if (a.kind === "multiInstanceStep") return a.stepId === b.stepId;
     if (a.kind === "gridColumn") return a.column === b.column;
@@ -334,6 +479,10 @@ export function DroppedComponent({
       return;
     e.preventDefault();
     e.stopPropagation();
+    setFlowDropIndicator(null);
+    applySelection(e);
+    selectionHandledRef.current = true;
+    if (isLocked) return;
     const parentRect = getParentRect();
     if (parentRect) {
       if (flowLayout && componentRef.current) {
@@ -366,15 +515,18 @@ export function DroppedComponent({
     if (componentRef.current) {
       const rect = componentRef.current.getBoundingClientRect();
       setDragSize({ width: rect.width, height: rect.height });
+      dragGhostOffsetRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
     }
-    setFlowDropIndicator(null);
-    selectComponent(component.id);
     console.log("[DEBUG] handleMouseDown: selectComponent", component.id);
   };
 
   // Mouse down for resize
   const handleResizeMouseDown = (e, corner) => {
     if (isPreview) return; // Disable resize in preview
+    if (isLocked) return;
     console.log(
       "Resize handle down:",
       corner,
@@ -418,7 +570,7 @@ export function DroppedComponent({
       minWidth,
       minHeight,
     });
-    selectComponent(component.id);
+    applySelection(e, { forceSingle: true });
     console.log("[DEBUG] handleResizeMouseDown: selectComponent", component.id);
   };
 
@@ -430,11 +582,19 @@ export function DroppedComponent({
         if (Math.hypot(deltaX, deltaY) >= 4) {
           setIsDragging(true);
           setIsPointerDown(false);
+          setDragGhostPosition({
+            x: e.clientX - dragGhostOffsetRef.current.x,
+            y: e.clientY - dragGhostOffsetRef.current.y,
+          });
         } else {
           return;
         }
       }
       if (isDragging) {
+        setDragGhostPosition({
+          x: e.clientX - dragGhostOffsetRef.current.x,
+          y: e.clientY - dragGhostOffsetRef.current.y,
+        });
         const dragSampleY = getDragCenterY(e.clientY);
         if (typeof lastPointerYRef.current === "number") {
           if (dragSampleY > lastPointerYRef.current) {
@@ -445,6 +605,15 @@ export function DroppedComponent({
         }
         lastPointerYRef.current = dragSampleY;
         const hoverTarget = resolveDropTarget(e.clientX, e.clientY);
+        if (!hoverTarget) {
+          if (lastHoverTargetRef.current) {
+            setActiveDropTarget(null);
+            lastHoverTargetRef.current = null;
+          }
+        } else if (!isSameTarget(hoverTarget, lastHoverTargetRef.current)) {
+          setActiveDropTarget(hoverTarget);
+          lastHoverTargetRef.current = hoverTarget;
+        }
         if (
           hoverTarget?.kind === "gridColumn" &&
           getComponentById(hoverTarget.componentId)?.type === "Section"
@@ -452,6 +621,7 @@ export function DroppedComponent({
           const insertIndex = getFlowDropIndex(
             hoverTarget,
             dragSampleY,
+            e.clientX,
             component.id,
             dragDirectionRef.current
           );
@@ -462,19 +632,31 @@ export function DroppedComponent({
           }
         } else if (
           hoverTarget?.kind === "children" &&
-          getComponentById(hoverTarget.componentId)?.type === "Subsection"
+          (getComponentById(hoverTarget.componentId)?.type === "Subsection" ||
+            getComponentById(hoverTarget.componentId)?.type === "Card" ||
+            getComponentById(hoverTarget.componentId)?.type ===
+              "FlexContainer")
         ) {
+          const isFlexTarget =
+            getComponentById(hoverTarget.componentId)?.type === "FlexContainer";
           const insertIndex = getFlowDropIndex(
             hoverTarget,
             dragSampleY,
+            e.clientX,
             component.id,
-            dragDirectionRef.current
+            dragDirectionRef.current,
+            isFlexTarget
           );
           if (typeof insertIndex === "number") {
             setFlowDropIndicator({ target: hoverTarget, index: insertIndex });
           } else {
             setFlowDropIndicator(null);
           }
+        } else if (
+          hoverTarget?.kind === "children" &&
+          getComponentById(hoverTarget.componentId)?.type === "Grid"
+        ) {
+          setFlowDropIndicator({ target: hoverTarget, index: 0 });
         } else {
           setFlowDropIndicator(null);
         }
@@ -486,19 +668,21 @@ export function DroppedComponent({
             const height =
               dragSize?.height ?? getComponentBounds().height ?? 0;
             const maxY = Math.max(0, parentRect.height - height);
-            newX = 0;
-            newY = Math.min(Math.max(newY, 0), maxY);
-            if (snapToGrid && gridSize > 0) {
-              newX = Math.floor(newX / gridSize) * gridSize;
-              newY = Math.floor(newY / gridSize) * gridSize;
-              newY = Math.min(newY, maxY);
+            const width =
+              dragSize?.width ?? getComponentBounds().width ?? 0;
+            const maxX = Math.max(0, parentRect.width - width);
+            if (isGridParent) {
+              newX = Math.min(Math.max(newX, 0), maxX);
+            } else {
+              newX = 0;
             }
-            moveComponent(component.id, { x: newX, y: newY });
+            newY = Math.min(Math.max(newY, 0), maxY);
+            updateComponent(component.id, { position: { x: newX, y: newY } });
           } else {
             const clamped = clampPosition(newX, newY, parentTarget);
             moveComponent(component.id, clamped);
           }
-          selectComponent(component.id); // Keep selected after move
+          setPrimarySelection(component.id); // Keep selected after move
           console.log(
             "[DEBUG] handleMouseMove (drag): selectComponent",
             component.id
@@ -582,7 +766,7 @@ export function DroppedComponent({
           newY,
         });
         resizeComponent(component.id, { width: newWidth, height: newHeight });
-        selectComponent(component.id); // Ensure selection after resize
+        setPrimarySelection(component.id); // Ensure selection after resize
         console.log(
           "[DEBUG] handleMouseMove (resize): selectComponent",
           component.id
@@ -605,7 +789,10 @@ export function DroppedComponent({
       }
       setFlowDropIndicator(null);
       // Ensure the component remains selected after resizing or moving
-      selectComponent(component.id);
+      if (wasDragging || wasResizing) {
+        setPrimarySelection(component.id);
+        selectionHandledRef.current = false;
+      }
       // Prevent canvas click from clearing selection after resize
       if (wasResizing) {
         window._ignoreNextCanvasClick = true;
@@ -620,16 +807,72 @@ export function DroppedComponent({
           const isSubsectionChildren =
             nextTarget.kind === "children" &&
             getComponentById(nextTarget.componentId)?.type === "Subsection";
-          if (isSectionColumn || isSubsectionChildren) {
+          const isCardChildren =
+            nextTarget.kind === "children" &&
+            getComponentById(nextTarget.componentId)?.type === "Card";
+          const isFlexChildren =
+            nextTarget.kind === "children" &&
+            getComponentById(nextTarget.componentId)?.type === "FlexContainer";
+          const isGridChildren =
+            nextTarget.kind === "children" &&
+            getComponentById(nextTarget.componentId)?.type === "Grid";
+          if (
+            isSectionColumn ||
+            isSubsectionChildren ||
+            isCardChildren ||
+            isFlexChildren ||
+            isGridChildren
+          ) {
             const dragSampleY = getDragCenterY(e.clientY);
-            const insertIndex = getFlowDropIndex(
-              nextTarget,
-              dragSampleY,
-              component.id,
-              dragDirectionRef.current
-            );
+            const sortByRect = isFlexChildren;
+            const insertIndex = isGridChildren
+              ? undefined
+              : getFlowDropIndex(
+                  nextTarget,
+                  dragSampleY,
+                  e.clientX,
+                  component.id,
+                  dragDirectionRef.current,
+                  sortByRect
+                );
             moveComponentToTarget(component.id, nextTarget, insertIndex);
             moveComponent(component.id, { x: 0, y: 0 });
+            if (isGridChildren) {
+              const targetRect = getTargetRect(nextTarget);
+              const gridComponent = getComponentById(nextTarget.componentId);
+              const columns = getGridColumnsForWidth(
+                gridComponent?.properties?.columns,
+                targetRect?.width ?? 0
+              );
+              const active = getActiveBreakpoint(targetRect?.width ?? 0);
+              const placements = (gridComponent?.children ?? [])
+                .filter((child) => child.id !== component.id)
+                .map((child) => {
+                  const legacyStart = child.column ?? 1;
+                  const startValue = child.grid?.start
+                    ? getResponsiveValue(
+                        child.grid?.start,
+                        active,
+                        legacyStart
+                      )
+                    : legacyStart;
+                  const spanValue = child.grid?.span
+                    ? getResponsiveValue(child.grid?.span, active, 1)
+                    : 1;
+                  return clampGridPlacement(startValue, spanValue, columns);
+                });
+              const desiredSpan = component.grid?.span
+                ? getResponsiveValue(component.grid?.span, active, 1)
+                : 1;
+              const nextStart = getNextGridStart(
+                placements,
+                columns,
+                desiredSpan
+              );
+              updateComponent(component.id, {
+                grid: buildGridLayoutForColumn(nextStart, component.grid?.span),
+              });
+            }
           } else if (!isSameTarget(nextTarget, currentTarget)) {
             const targetRect = getTargetRect(nextTarget);
             if (targetRect) {
@@ -651,6 +894,9 @@ export function DroppedComponent({
       if (wasDragging) {
         lastPointerYRef.current = null;
         dragDirectionRef.current = null;
+        lastHoverTargetRef.current = null;
+        setActiveDropTarget(null);
+        setDragGhostPosition(null);
       }
       console.log("[DEBUG] handleMouseUp: selectComponent", component.id);
     };
@@ -944,6 +1190,11 @@ export function DroppedComponent({
   }, [
     component.type,
     component.properties.text,
+    component.properties.iconName,
+    component.properties.iconPosition,
+    component.properties.iconVariant,
+    component.properties.iconStroke,
+    component.properties.iconSize,
     component.properties.leftIcon,
     component.properties.rightIcon,
   ]);
@@ -1078,6 +1329,10 @@ export function DroppedComponent({
     return () => observer.disconnect();
   }, [component.type, switchGroupRef]);
 
+  if (isPreview && isHidden) {
+    return null;
+  }
+
   return (
     <>
       {/* Off-screen Switch for measurement */}
@@ -1100,21 +1355,46 @@ export function DroppedComponent({
       <div
         ref={componentRef}
         data-component-id={component.id}
-        className={`component-hover rounded${
+        className={`component-hover rounded component-${component.type.toLowerCase()}${
           isSelected && !isPreview ? " component-selected" : ""
         }${
           isDragging && !isPreview
             ? " component-dragging cursor-move"
             : " cursor-pointer"
-        }${component.type === "Switch" ? " switch-component" : ""}`}
+        }${isLocked && !isPreview ? " component-locked" : ""}${
+          isHidden && !isPreview ? " component-hidden" : ""
+        }${component.type === "Switch" ? " switch-component" : ""}${
+          isContainer ? " component-is-container" : ""
+        }`}
         style={{
-          position: flowLayout && !isDragging ? "relative" : "absolute",
-          left: flowLayout && !isDragging ? "auto" : component.position.x,
-          top: flowLayout && !isDragging ? "auto" : component.position.y,
+          position:
+            isDragging && dragGhostPosition
+              ? "fixed"
+              : flowLayout && !isDragging
+                ? "relative"
+                : "absolute",
+          left:
+            isDragging && dragGhostPosition
+              ? dragGhostPosition.x
+              : flowLayout && !isDragging
+                ? "auto"
+                : component.position.x,
+          top:
+            isDragging && dragGhostPosition
+              ? dragGhostPosition.y
+              : flowLayout && !isDragging
+                ? "auto"
+                : component.position.y,
+          gridColumn: (() => {
+            if (!isGridParent || isDragging) return undefined;
+            const placement = getGridPlacement();
+            if (!placement) return undefined;
+            return `${placement.start} / span ${placement.span}`;
+          })(),
           width:
             isDragging && dragSize
               ? dragSize.width
-              : flowLayout
+              : flowFullWidth
                 ? "100%"
                 : component.type === "Switch"
                   ? measuredWidth // Use measured width for Switch
@@ -1124,7 +1404,7 @@ export function DroppedComponent({
           height:
             isDragging && dragSize
               ? dragSize.height
-              : isSectionCollapsed
+              : isSectionCollapsed || isGridCollapsed
                 ? "auto"
                 : component.type === "Checkbox"
                   ? undefined
@@ -1146,10 +1426,13 @@ export function DroppedComponent({
                 ? 36
                 : undefined,
           userSelect: "none",
+          opacity: isHidden && !isPreview ? 0.35 : undefined,
+          filter: isHidden && !isPreview ? "grayscale(0.65)" : undefined,
           zIndex: isSelected ? 10 : 1,
           overflow: "visible",
           display: "flex",
           flexDirection: "column",
+          pointerEvents: isDragging ? "none" : "auto",
         }}
       >
         <div
@@ -1158,20 +1441,38 @@ export function DroppedComponent({
           onClick={(e) => {
             if (isPreview || isContainer) return;
             e.stopPropagation();
-            selectComponent(component.id);
+            if (selectionHandledRef.current) {
+              selectionHandledRef.current = false;
+              return;
+            }
+            if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+            setPrimarySelection(component.id);
           }}
         >
           {isContainer ? (
             <div
               className="designer-container"
               data-component-id={component.id}
+              data-selected={isSelected ? "true" : "false"}
               onMouseDown={handleMouseDown}
               onClick={(e) => {
                 if (isPreview) return;
                 e.stopPropagation();
-                selectComponent(component.id);
+                if (selectionHandledRef.current) {
+                  selectionHandledRef.current = false;
+                  return;
+                }
+                applySelection(e);
               }}
             >
+              {!isPreview && !isLocked ? (
+                <div className="designer-floating-handle component-drag-handle" title="Drag">
+                  <span
+                    className="designer-floating-handle__dots"
+                    aria-hidden="true"
+                  />
+                </div>
+              ) : null}
               {children}
             </div>
           ) : (
@@ -1192,7 +1493,7 @@ export function DroppedComponent({
                   width:
                     isDragging && dragSize
                       ? dragSize.width
-                      : flowLayout
+                      : flowFullWidth
                         ? "100%"
                         : component.type === "Switch"
                           ? measuredWidth // Use measured width for Switch
@@ -1220,14 +1521,14 @@ export function DroppedComponent({
         {!isPreview && isSelected && (
           <>
             <div className="component-selection-box" />
-            {!isContainer && (
+            {!isContainer && !isLocked && (
               <div
                 className="component-drag-handle absolute cursor-move"
                 style={{ top: 8, left: 8, right: 20, bottom: 20, zIndex: 10 }}
               />
             )}
             {/* Render resize handles based on resizable directions */}
-            {resizable.horizontal && resizable.vertical && (
+            {!isLocked && resizable.horizontal && resizable.vertical && (
               <>
                 <div
                   className="resize-corner nw"
@@ -1251,7 +1552,7 @@ export function DroppedComponent({
                 />
               </>
             )}
-            {resizable.horizontal && !resizable.vertical && (
+            {!isLocked && resizable.horizontal && !resizable.vertical && (
               <>
                 <div
                   className="resize-corner e"
@@ -1263,7 +1564,7 @@ export function DroppedComponent({
                 />
               </>
             )}
-            {!resizable.horizontal && resizable.vertical && (
+            {!isLocked && !resizable.horizontal && resizable.vertical && (
               <>
                 <div
                   className="resize-corner n"

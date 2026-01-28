@@ -9,6 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Eye, SaveIcon, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { optionsApi } from "../../../api/entities";
@@ -20,6 +21,8 @@ import type { OptionsDetailsPaneProps } from "../../../components/options/Option
 import type { VariablesManager } from "../../variables/hooks/useVariablesManager";
 import { FormDesigner } from "./FormDesigner";
 import { FormDesignerPreview } from "./FormDesignerPreview";
+import { DesignerArrangeToolbar } from "./DesignerArrangeToolbar";
+import { DesignerCollectionEditorHost } from "./DesignerCollectionEditorHost";
 import theme from "./chakraTheme";
 import "./formDesigner.css";
 
@@ -37,7 +40,9 @@ const DEFAULT_FORM_DEFINITION: DesignerFormDefinition = {
   zoom: 1,
 };
 
-const normalizeDefinition = (definition?: Option["formDraft"] | null) => {
+const normalizeDefinition = (
+  definition?: Option["formDraft"] | null,
+): DesignerFormDefinition | null => {
   if (!definition || typeof definition !== "object") return null;
   const typed = definition as NonNullable<Option["formDraft"]>;
   if (!Array.isArray(typed.components)) return null;
@@ -66,6 +71,7 @@ export function FormDesignerHost({
   const components = useDesignerStore((state) => state.components);
   const canvasSize = useDesignerStore((state) => state.canvasSize);
   const zoom = useDesignerStore((state) => state.zoom);
+  const panelLayout = useDesignerStore((state) => state.panelLayout);
   const [baselineDefinition, setBaselineDefinition] = useState<DesignerFormDefinition | null>(
     null,
   );
@@ -167,34 +173,52 @@ export function FormDesignerHost({
   return (
     <ChakraProvider theme={theme}>
       <div className="form-designer-host form-designer-shell">
-        <div className="form-designer-toolbar">
-          <div className="form-designer-toolbar__title">
-            Form Designer
-            {option?.name && <span className="form-designer-toolbar__option">{option.name}</span>}
+        <div
+          className="form-designer-toolbar"
+          style={
+            {
+              "--designer-toolbar-left": `${panelLayout.toolbox}%`,
+              "--designer-toolbar-center": `${panelLayout.canvas}%`,
+              "--designer-toolbar-right": `${panelLayout.properties}%`,
+            } as CSSProperties
+          }
+        >
+          <div className="form-designer-toolbar__left">
+            <div className="form-designer-toolbar__title">
+              Form Designer
+              {option?.name && (
+                <span className="form-designer-toolbar__option">{option.name}</span>
+              )}
+            </div>
           </div>
-          <div className="form-designer-toolbar__actions">
-            <ToolbarButton
-              title="Save draft"
-              onClick={handleSaveDraft}
-              disabled={!canDesign || saveDraft.isPending}
-              icon={<SaveIcon size={14} />}
-              label="Save Draft"
-            />
-            <ToolbarButton
-              title="Preview form"
-              onClick={handleOpenPreview}
-              disabled={!canDesign}
-              icon={<Eye size={14} />}
-              label="Preview"
-            />
-            <ToolbarDivider />
-            <ToolbarButton
-              title="Publish current draft"
-              onClick={handlePublish}
-              disabled={!canDesign || publish.isPending}
-              icon={<UploadCloud size={14} />}
-              label="Publish"
-            />
+
+          {canDesign ? <DesignerArrangeToolbar /> : <div />}
+
+          <div className="form-designer-toolbar__right">
+            <div className="form-designer-toolbar__actions">
+              <ToolbarButton
+                title="Save draft"
+                onClick={handleSaveDraft}
+                disabled={!canDesign || saveDraft.isPending}
+                icon={<SaveIcon size={14} />}
+                label="Save Draft"
+              />
+              <ToolbarButton
+                title="Preview form"
+                onClick={handleOpenPreview}
+                disabled={!canDesign}
+                icon={<Eye size={14} />}
+                label="Preview"
+              />
+              <ToolbarDivider />
+              <ToolbarButton
+                title="Publish current draft"
+                onClick={handlePublish}
+                disabled={!canDesign || publish.isPending}
+                icon={<UploadCloud size={14} />}
+                label="Publish"
+              />
+            </div>
           </div>
         </div>
 
@@ -224,6 +248,8 @@ export function FormDesignerHost({
           )}
         </div>
       </div>
+
+      {canDesign ? <DesignerCollectionEditorHost /> : null}
 
       <Modal isOpen={isPreviewOpen} onClose={handleClosePreview} size="full">
         <ModalOverlay />

@@ -7,6 +7,9 @@ export const getDropZoneId = (target: ContainerTarget) => {
   if (target.kind === "children") {
     return `form-designer-drop-children-${target.componentId}`;
   }
+  if (target.kind === "tabPanel") {
+    return `form-designer-drop-tab-${target.componentId}-${target.tabId}`;
+  }
   if (target.kind === "accordionPanel") {
     return `form-designer-drop-accordion-${target.componentId}-${target.panelId}`;
   }
@@ -25,6 +28,9 @@ export const getDropZoneDataset = (target: ContainerTarget) => {
   };
   if (target.kind !== "root") {
     dataset["data-container-id"] = target.componentId;
+  }
+  if (target.kind === "tabPanel") {
+    dataset["data-tab-id"] = target.tabId;
   }
   if (target.kind === "accordionPanel") {
     dataset["data-panel-id"] = target.panelId;
@@ -48,6 +54,11 @@ export const parseDropZoneDataset = (
   if (!componentId) return null;
   if (kind === "children") {
     return { kind: "children", componentId };
+  }
+  if (kind === "tabPanel") {
+    const tabId = element.dataset.tabId;
+    if (!tabId) return null;
+    return { kind: "tabPanel", componentId, tabId };
   }
   if (kind === "accordionPanel") {
     const panelId = element.dataset.panelId;

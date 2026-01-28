@@ -1,29 +1,26 @@
 // @ts-nocheck
-import React from "react";
 import { useDesignerStore } from "@/stores/designerStore";
 import { DesignCanvas } from "./DesignCanvas";
 import { DroppedComponent } from "./DroppedComponent";
 import {
   PreviewAccordionContainer,
+  PreviewCardContainer,
+  PreviewContainerContainer,
+  PreviewFlexContainer,
   PreviewGridContainer,
   PreviewMultiInstanceStepperContainer,
-  PreviewPageContainer,
+  PreviewTabsContainer,
+  PreviewPaperContainer,
   PreviewRepeaterContainer,
   PreviewSectionContainer,
-  PreviewStepContainer,
   PreviewSubsectionContainer,
 } from "./PreviewContainers";
-
-const resolveColumnCount = (value, fallback) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return fallback;
-};
 
 export function FormDesignerPreview() {
   const components = useDesignerStore((state) => state.components);
   const canvasSize = useDesignerStore((state) => state.canvasSize);
   const rootTarget = { kind: "root" };
+  const rootComponents = Array.isArray(components) ? components : [];
 
   const renderComponentList = (list, parentTarget) => {
     if (!Array.isArray(list)) return null;
@@ -75,13 +72,45 @@ export function FormDesignerPreview() {
         </PreviewSubsectionContainer>
       );
     }
-    if (component.type === "Grid") {
-      const columnCount = Math.min(
-        Math.max(resolveColumnCount(component.properties?.columns, 2), 2),
-        4
+    if (component.type === "Paper") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PreviewPaperContainer component={component}>
+          {renderComponentList(component.children ?? [], target)}
+        </PreviewPaperContainer>
       );
-      const columns = buildColumnSlots(component, columnCount);
-      return <PreviewGridContainer columns={columns} />;
+    }
+    if (component.type === "Card") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PreviewCardContainer component={component}>
+          {renderComponentList(component.children ?? [], target)}
+        </PreviewCardContainer>
+      );
+    }
+    if (component.type === "Container") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PreviewContainerContainer component={component}>
+          {renderComponentList(component.children ?? [], target)}
+        </PreviewContainerContainer>
+      );
+    }
+    if (component.type === "FlexContainer") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PreviewFlexContainer component={component}>
+          {renderComponentList(component.children ?? [], target)}
+        </PreviewFlexContainer>
+      );
+    }
+    if (component.type === "Grid") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PreviewGridContainer component={component}>
+          {renderComponentList(component.children ?? [], target)}
+        </PreviewGridContainer>
+      );
     }
     if (component.type === "Repeater") {
       const target = { kind: "children", componentId: component.id };
@@ -92,12 +121,38 @@ export function FormDesignerPreview() {
       );
     }
     if (component.type === "Page") {
-      const target = { kind: "children", componentId: component.id };
-      return (
-        <PreviewPageContainer component={component}>
-          {renderComponentList(component.children ?? [], target)}
-        </PreviewPageContainer>
-      );
+      const hasTabArray = Array.isArray(component.properties?.tabs);
+      const tabs = hasTabArray ? component.properties.tabs : [];
+      const legacyLabel =
+        typeof component.properties?.title === "string" &&
+        component.properties.title.trim()
+          ? component.properties.title
+          : "Tab 1";
+      const tabList =
+        tabs.length > 0
+          ? tabs
+          : hasTabArray
+            ? []
+            : [
+                {
+                  id: `${component.id}-tab-1`,
+                  label: legacyLabel,
+                  children: component.children ?? [],
+                },
+              ];
+      const tabItems = tabList.map((tab) => {
+        const target = {
+          kind: "tabPanel",
+          componentId: component.id,
+          tabId: tab.id,
+        };
+        const children = Array.isArray(tab.children) ? tab.children : [];
+        return {
+          ...tab,
+          children: renderComponentList(children, target),
+        };
+      });
+      return <PreviewTabsContainer component={component} tabs={tabItems} />;
     }
     if (component.type === "Accordion") {
       const panels = Array.isArray(component.properties?.panels)
@@ -116,25 +171,6 @@ export function FormDesignerPreview() {
         };
       });
       return <PreviewAccordionContainer panels={panelItems} />;
-    }
-    if (component.type === "Step") {
-      const target = { kind: "children", componentId: component.id };
-      const stepSiblings = Array.isArray(siblings)
-        ? siblings.filter((item) => item.type === "Step")
-        : [];
-      const stepIndex = Math.max(
-        0,
-        stepSiblings.findIndex((item) => item.id === component.id)
-      );
-      return (
-        <PreviewStepContainer
-          component={component}
-          stepIndex={stepIndex}
-          stepCount={stepSiblings.length}
-        >
-          {renderComponentList(component.children ?? [], target)}
-        </PreviewStepContainer>
-      );
     }
     if (component.type === "MultiInstanceStepper") {
       const steps = Array.isArray(component.properties?.steps)
@@ -180,7 +216,7 @@ export function FormDesignerPreview() {
         style={{ width: canvasSize.width, height: canvasSize.height }}
       >
         <DesignCanvas previewMode>
-          {renderComponentList(components, rootTarget)}
+          {renderComponentList(rootComponents, rootTarget)}
         </DesignCanvas>
       </div>
     </div>

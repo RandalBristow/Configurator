@@ -14,8 +14,5 @@ export const canDropComponentInTarget = (
     const parentType = getComponentById(target.componentId)?.type;
     return parentType === "Section";
   }
-  if (componentType === "Page" || componentType === "Step") {
-    return target.kind === "root";
-  }
   return true;
 };

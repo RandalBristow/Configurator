@@ -6,28 +6,25 @@ import { DesignCanvas } from "./DesignCanvas";
 import { DroppedComponent } from "./DroppedComponent";
 import {
   AccordionContainer,
+  CardContainer,
+  ContainerContainer,
   DropZone,
+  FlexContainer,
   GridContainer,
   MultiInstanceStepperContainer,
-  PageContainer,
+  TabsContainer,
+  PaperContainer,
   RepeaterContainer,
   SectionContainer,
-  StepContainer,
   SubsectionContainer,
 } from "./DesignerContainers";
 import { getDropZoneId } from "./containerUtils";
-
-const resolveColumnCount = (value, fallback) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return fallback;
-};
 
 export function DesignSurface() {
   const {
     components,
     canvasSize,
-    selectedComponentId,
+    selectedComponentIds,
     setCanvasSize,
   } = useDesignerStore();
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
@@ -94,13 +91,45 @@ export function DesignSurface() {
         </SubsectionContainer>
       );
     }
-    if (component.type === "Grid") {
-      const columnCount = Math.min(
-        Math.max(resolveColumnCount(component.properties.columns, 2), 2),
-        4
+    if (component.type === "Paper") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <PaperContainer component={component} target={target}>
+          {renderComponentList(component.children ?? [], target)}
+        </PaperContainer>
       );
-      const columns = buildColumnSlots(component, columnCount);
-      return <GridContainer component={component} columns={columns} />;
+    }
+    if (component.type === "Card") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <CardContainer component={component} target={target}>
+          {renderComponentList(component.children ?? [], target)}
+        </CardContainer>
+      );
+    }
+    if (component.type === "Container") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <ContainerContainer component={component} target={target}>
+          {renderComponentList(component.children ?? [], target)}
+        </ContainerContainer>
+      );
+    }
+    if (component.type === "FlexContainer") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <FlexContainer component={component} target={target}>
+          {renderComponentList(component.children ?? [], target)}
+        </FlexContainer>
+      );
+    }
+    if (component.type === "Grid") {
+      const target = { kind: "children", componentId: component.id };
+      return (
+        <GridContainer component={component} target={target}>
+          {renderComponentList(component.children ?? [], target)}
+        </GridContainer>
+      );
     }
     if (component.type === "Repeater") {
       const target = { kind: "children", componentId: component.id };
@@ -111,12 +140,33 @@ export function DesignSurface() {
       );
     }
     if (component.type === "Page") {
-      const target = { kind: "children", componentId: component.id };
-      return (
-        <PageContainer component={component} target={target}>
-          {renderComponentList(component.children ?? [], target)}
-        </PageContainer>
-      );
+      const tabs = Array.isArray(component.properties?.tabs)
+        ? component.properties.tabs
+        : [];
+      const tabItems = tabs.map((tab) => {
+        const target = {
+          kind: "tabPanel",
+          componentId: component.id,
+          tabId: tab.id,
+        };
+        const children = Array.isArray(tab.children) ? tab.children : [];
+        const renderedChildren = renderComponentList(children, target);
+        const hasChildren = children.length > 0;
+        return {
+          ...tab,
+          children: (
+            <DropZone
+              target={target}
+              className="designer-tabs__body"
+              empty={!hasChildren}
+              emptyLabel="Drop components into this tab"
+            >
+              {renderedChildren}
+            </DropZone>
+          ),
+        };
+      });
+      return <TabsContainer component={component} tabs={tabItems} />;
     }
     if (component.type === "Accordion") {
       const panels = Array.isArray(component.properties?.panels)
@@ -146,26 +196,6 @@ export function DesignSurface() {
         };
       });
       return <AccordionContainer component={component} panels={panelItems} />;
-    }
-    if (component.type === "Step") {
-      const target = { kind: "children", componentId: component.id };
-      const stepSiblings = Array.isArray(siblings)
-        ? siblings.filter((item) => item.type === "Step")
-        : [];
-      const stepIndex = Math.max(
-        0,
-        stepSiblings.findIndex((item) => item.id === component.id)
-      );
-      return (
-        <StepContainer
-          component={component}
-          target={target}
-          stepIndex={stepIndex}
-          stepCount={stepSiblings.length}
-        >
-          {renderComponentList(component.children ?? [], target)}
-        </StepContainer>
-      );
     }
     if (component.type === "MultiInstanceStepper") {
       const steps = Array.isArray(component.properties?.steps)
@@ -213,7 +243,7 @@ export function DesignSurface() {
 
   const shellClassName = [
     "form-designer-canvas-shell",
-    selectedComponentId ? "is-selected" : null,
+    selectedComponentIds.length > 0 ? "is-selected" : null,
     isResizingCanvas ? "is-resizing" : null,
   ]
     .filter(Boolean)
@@ -278,3 +308,4 @@ export function DesignSurface() {
     </div>
   );
 }
+
